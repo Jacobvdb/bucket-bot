@@ -1,18 +1,100 @@
-/**
- * Welcome to Cloudflare Workers! This is your first worker.
- *
- * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your worker in action
- * - Run `npm run deploy` to publish your worker
- *
- * Bind resources to your worker in `wrangler.jsonc`. After adding bindings, a type definition for the
- * `Env` object can be regenerated with `npm run cf-typegen`.
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
+import { Hono } from 'hono'
+import { Bkper } from 'bkper-js'
+import type { BkperWebhookPayload } from './types'
+import { detectSavings } from './webhook'
 
-export default {
-	async fetch(request, env, ctx): Promise<Response> {
-		return new Response('Hello World!');
-	},
-} satisfies ExportedHandler<Env>;
+type Bindings = {
+  BKPER_API_KEY: string
+}
+
+const app = new Hono<{ Bindings: Bindings }>()
+
+app.get('/health', (c) => c.text('OK'))
+
+app.post('/webhook', async (c) => {
+  const payload = await c.req.json<BkperWebhookPayload>()
+
+  console.log('Webhook received:', payload.type, payload.resource)
+
+  const result = detectSavings(payload)
+
+  if (!result.isSavings) {
+    console.log('Not a savings transaction, skipping')
+    return c.json({ success: true })
+  }
+
+  console.log('Savings detected:', JSON.stringify(result.context, null, 2))
+
+  // Get OAuth token from bkper-oauth-token header (sent by Bkper)
+  const oauthToken = c.req.header('bkper-oauth-token')
+  if (!oauthToken) {
+    console.log('No OAuth token in bkper-oauth-token header')
+    return c.json({ success: false, error: 'No OAuth token' })
+  }
+
+  // Create Bkper instance
+  const bkper = new Bkper({
+    apiKeyProvider: () => c.env.BKPER_API_KEY,
+    oauthTokenProvider: () => oauthToken,
+  })
+
+  // Get bucket book with accounts and groups
+  const bucketBook = await bkper.getBook(result.context.bucketBookId, true, true)
+
+  console.log('Bucket book:', bucketBook.getName())
+  console.log('Bucket book accounts:', bucketBook.getAccounts()?.map((a) => ({
+    name: a.getName(),
+    properties: a.getProperties(),
+  })))
+  console.log('Bucket book groups:', bucketBook.getGroups()?.map((g) => ({
+    name: g.getName(),
+    properties: g.getProperties(),
+  })))
+
+  return c.json({ success: true })
+})
+
+app.post('/', async (c) => {
+  const payload = await c.req.json<BkperWebhookPayload>()
+
+  console.log('Webhook received:', payload.type, payload.resource)
+
+  const result = detectSavings(payload)
+
+  if (!result.isSavings) {
+    console.log('Not a savings transaction, skipping')
+    return c.json({ success: true })
+  }
+
+  console.log('Savings detected:', JSON.stringify(result.context, null, 2))
+
+  // Get OAuth token from bkper-oauth-token header (sent by Bkper)
+  const oauthToken = c.req.header('bkper-oauth-token')
+  if (!oauthToken) {
+    console.log('No OAuth token in bkper-oauth-token header')
+    return c.json({ success: false, error: 'No OAuth token' })
+  }
+
+  // Create Bkper instance
+  const bkper = new Bkper({
+    apiKeyProvider: () => c.env.BKPER_API_KEY,
+    oauthTokenProvider: () => oauthToken,
+  })
+
+  // Get bucket book with accounts and groups
+  const bucketBook = await bkper.getBook(result.context.bucketBookId, true, true)
+
+  console.log('Bucket book:', bucketBook.getName())
+  console.log('Bucket book accounts:', bucketBook.getAccounts()?.map((a) => ({
+    name: a.getName(),
+    properties: a.getProperties(),
+  })))
+  console.log('Bucket book groups:', bucketBook.getGroups()?.map((g) => ({
+    name: g.getName(),
+    properties: g.getProperties(),
+  })))
+
+  return c.json({ success: true })
+})
+
+export default app
