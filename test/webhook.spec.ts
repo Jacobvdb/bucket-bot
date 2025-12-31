@@ -279,6 +279,87 @@ describe('detectSavings', () => {
     })
   })
 
+  describe('suffix from account groups', () => {
+    it('extracts suffix from account groups when account has savings:true but no suffix in name', () => {
+      const groupWithSuffix: BkperGroup = {
+        id: 'group-id',
+        name: 'Savings LONG',
+        normalizedName: 'savings_long',
+        credit: false,
+        permanent: true,
+        // Note: group does NOT have savings:true, only the account does
+      }
+
+      const payload = createTestPayload({
+        debitAccountProps: { savings: 'true' },
+        debitAccountName: 'RDB', // No suffix in account name
+        debitAccountGroups: [groupWithSuffix], // Group has suffix
+      })
+
+      const result = detectSavings(payload)
+
+      expect(result.isSavings).toBe(true)
+      if (result.isSavings) {
+        expect(result.context.suffix).toBe('LONG')
+        expect(result.context.savingsAccountName).toBe('RDB')
+        expect(result.context.savingsGroupName).toBeUndefined() // savingsGroup is undefined because savings detected at account level
+      }
+    })
+
+    it('uses first matching suffix from multiple groups', () => {
+      const group1: BkperGroup = {
+        id: 'group-1',
+        name: 'No Suffix Here',
+        normalizedName: 'no_suffix_here',
+        credit: false,
+        permanent: true,
+      }
+      const group2: BkperGroup = {
+        id: 'group-2',
+        name: 'Provisioning LONG',
+        normalizedName: 'provisioning_long',
+        credit: false,
+        permanent: true,
+      }
+
+      const payload = createTestPayload({
+        debitAccountProps: { savings: 'true' },
+        debitAccountName: 'RDB',
+        debitAccountGroups: [group1, group2],
+      })
+
+      const result = detectSavings(payload)
+
+      expect(result.isSavings).toBe(true)
+      if (result.isSavings) {
+        expect(result.context.suffix).toBe('LONG')
+      }
+    })
+
+    it('returns no suffix when account and groups have no suffix', () => {
+      const groupNoSuffix: BkperGroup = {
+        id: 'group-id',
+        name: 'Savings',
+        normalizedName: 'savings',
+        credit: false,
+        permanent: true,
+      }
+
+      const payload = createTestPayload({
+        debitAccountProps: { savings: 'true' },
+        debitAccountName: 'RDB',
+        debitAccountGroups: [groupNoSuffix],
+      })
+
+      const result = detectSavings(payload)
+
+      expect(result.isSavings).toBe(true)
+      if (result.isSavings) {
+        expect(result.context.suffix).toBeUndefined()
+      }
+    })
+  })
+
   describe('bucket override', () => {
     it('extracts bucketOverride from transaction properties', () => {
       const payload = createTestPayload({

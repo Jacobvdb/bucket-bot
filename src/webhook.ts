@@ -126,8 +126,21 @@ export function detectSavings(payload: BkperWebhookPayload): SavingsDetectionRes
   // Only extract suffix if no bucket override (saves processing time)
   let suffix: string | undefined
   if (!bucketOverride) {
-    const suffixSource = savingsGroup?.name ?? savingsAccount.name
-    suffix = extractSuffix(suffixSource)
+    // Try savingsGroup first (if savings detected via group)
+    if (savingsGroup) {
+      suffix = extractSuffix(savingsGroup.name)
+    }
+    // Otherwise try account name
+    if (!suffix) {
+      suffix = extractSuffix(savingsAccount.name)
+    }
+    // If still no suffix, check account's groups
+    if (!suffix && savingsAccount.groups) {
+      for (const group of savingsAccount.groups) {
+        suffix = extractSuffix(group.name)
+        if (suffix) break
+      }
+    }
   }
 
   // Build context
