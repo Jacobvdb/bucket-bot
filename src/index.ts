@@ -41,15 +41,9 @@ app.post('/webhook', async (c) => {
   // Get bucket book with accounts and groups
   const bucketBook = await bkper.getBook(result.context.bucketBookId, true, true)
 
-  console.log('Bucket book:', bucketBook.getName())
-  console.log('Bucket book accounts:', bucketBook.getAccounts()?.map((a) => ({
-    name: a.getName(),
-    properties: a.getProperties(),
-  })))
-  console.log('Bucket book groups:', bucketBook.getGroups()?.map((g) => ({
-    name: g.getName(),
-    properties: g.getProperties(),
-  })))
+  // Log the book object to see what's included
+  console.log('Bucket book name:', bucketBook.getName())
+  console.log('Bucket book object:', JSON.stringify(bucketBook, null, 2))
 
   return c.json({ success: true })
 })
@@ -84,15 +78,9 @@ app.post('/', async (c) => {
   // Get bucket book with accounts and groups
   const bucketBook = await bkper.getBook(result.context.bucketBookId, true, true)
 
-  console.log('Bucket book:', bucketBook.getName())
-  console.log('Bucket book accounts:', bucketBook.getAccounts()?.map((a) => ({
-    name: a.getName(),
-    properties: a.getProperties(),
-  })))
-  console.log('Bucket book groups:', bucketBook.getGroups()?.map((g) => ({
-    name: g.getName(),
-    properties: g.getProperties(),
-  })))
+  // Log the book object to see what's included
+  console.log('Bucket book name:', bucketBook.getName())
+  console.log('Bucket book object:', JSON.stringify(bucketBook, null, 2))
 
   return c.json({ success: true })
 })
