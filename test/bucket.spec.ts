@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets, accountMatchesSuffix } from '../src/bucket'
+import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets, distributeToOverrideBuckets, accountMatchesSuffix } from '../src/bucket'
 import type { Book, Account, Group } from 'bkper-js'
 import type { SavingsContext } from '../src/types'
 import { Transaction } from 'bkper-js'
@@ -265,6 +265,108 @@ describe('distributeToSuffixBuckets', () => {
     await distributeToSuffixBuckets(book, context)
 
     expect(mockTx.addRemoteId).toHaveBeenCalledWith('ABCDEF123_new_car_long')
+  })
+})
+
+describe('distributeToOverrideBuckets', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns error when no bucketOverride is provided', async () => {
+    const book = createMockBook([])
+    const context = createMockContext({ bucketOverride: undefined })
+
+    const result = await distributeToOverrideBuckets(book, context)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('No bucket override provided')
+  })
+
+  it('distributes equally to accounts listed in bucketOverride', async () => {
+    const mockTransactions: ReturnType<typeof createMockTransaction>[] = []
+    vi.mocked(Transaction).mockImplementation(() => {
+      const mockTx = createMockTransaction()
+      mockTransactions.push(mockTx)
+      return mockTx as unknown as Transaction
+    })
+
+    const savingsAccount = createMockAccount('INCOMING', 'Savings')
+    const bucket1 = createMockAccount('ASSET', 'New Car', undefined, [], 'new_car')
+    const bucket2 = createMockAccount('ASSET', 'Emergency Fund', undefined, [], 'emergency_fund')
+    const book = createMockBook(
+      [savingsAccount, bucket1, bucket2],
+      {
+        'Savings': savingsAccount,
+        'Withdrawal': createMockAccount('OUTGOING', 'Withdrawal'),
+        'New Car': bucket1,
+        'Emergency Fund': bucket2,
+      }
+    )
+    const context = createMockContext({
+      bucketOverride: 'New Car, Emergency Fund',
+      amount: '1000',
+      transactionId: 'TX123',
+    })
+
+    const result = await distributeToOverrideBuckets(book, context)
+
+    expect(result.success).toBe(true)
+    expect(result.transactionCount).toBe(2)
+    expect(result.totalDistributed).toBe(1000)
+    expect(mockTransactions).toHaveLength(2)
+    expect(mockTransactions[0].setAmount).toHaveBeenCalledWith(500)
+    expect(mockTransactions[1].setAmount).toHaveBeenCalledWith(500)
+  })
+
+  it('sets remote IDs with format transactionId_normalizedAccountName', async () => {
+    const mockTransactions: ReturnType<typeof createMockTransaction>[] = []
+    vi.mocked(Transaction).mockImplementation(() => {
+      const mockTx = createMockTransaction()
+      mockTransactions.push(mockTx)
+      return mockTx as unknown as Transaction
+    })
+
+    const savingsAccount = createMockAccount('INCOMING', 'Savings')
+    const bucket1 = createMockAccount('ASSET', 'New Car', undefined, [], 'new_car')
+    const bucket2 = createMockAccount('ASSET', 'Emergency Fund', undefined, [], 'emergency_fund')
+    const book = createMockBook(
+      [savingsAccount, bucket1, bucket2],
+      {
+        'Savings': savingsAccount,
+        'Withdrawal': createMockAccount('OUTGOING', 'Withdrawal'),
+        'New Car': bucket1,
+        'Emergency Fund': bucket2,
+      }
+    )
+    const context = createMockContext({
+      bucketOverride: 'New Car, Emergency Fund',
+      transactionId: 'ABCDEF123',
+    })
+
+    await distributeToOverrideBuckets(book, context)
+
+    expect(mockTransactions[0].addRemoteId).toHaveBeenCalledWith('ABCDEF123_new_car')
+    expect(mockTransactions[1].addRemoteId).toHaveBeenCalledWith('ABCDEF123_emergency_fund')
+  })
+
+  it('returns error when account does not exist', async () => {
+    const savingsAccount = createMockAccount('INCOMING', 'Savings')
+    const book = createMockBook(
+      [savingsAccount],
+      {
+        'Savings': savingsAccount,
+        'Withdrawal': createMockAccount('OUTGOING', 'Withdrawal'),
+      }
+    )
+    const context = createMockContext({
+      bucketOverride: 'New Car, NonExistent Account',
+    })
+
+    const result = await distributeToOverrideBuckets(book, context)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('New Car')
   })
 })
 

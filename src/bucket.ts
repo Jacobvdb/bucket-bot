@@ -245,3 +245,94 @@ export async function distributeToSuffixBuckets(
     totalDistributed,
   }
 }
+
+/**
+ * Distribute to specific bucket accounts listed in bucketOverride.
+ * Amount is distributed equally among all listed accounts.
+ */
+export async function distributeToOverrideBuckets(
+  bucketBook: Book,
+  context: SavingsContext
+): Promise<DistributionResult> {
+  if (!context.bucketOverride) {
+    return {
+      success: false,
+      transactionCount: 0,
+      totalDistributed: 0,
+      error: 'No bucket override provided',
+    }
+  }
+
+  // Parse comma-separated account names
+  const accountNames = context.bucketOverride.split(',').map(name => name.trim())
+  const totalAmount = Number(context.amount)
+
+  // Look up each account by exact name
+  const bucketAccounts: Account[] = []
+  const missingAccounts: string[] = []
+
+  for (const name of accountNames) {
+    const account = await bucketBook.getAccount(name)
+    if (account) {
+      bucketAccounts.push(account)
+    } else {
+      missingAccounts.push(name)
+    }
+  }
+
+  // Return error if any accounts are missing
+  if (missingAccounts.length > 0) {
+    return {
+      success: false,
+      transactionCount: 0,
+      totalDistributed: 0,
+      error: `Accounts not found: ${missingAccounts.join(', ')}`,
+    }
+  }
+
+  // Calculate equal percentage for each account
+  const percentage = 100 / bucketAccounts.length
+  const amount = totalAmount * (percentage / 100)
+
+  // Build description with hashtag
+  const description = context.bucketHashtag
+    ? `${context.description} ${context.bucketHashtag}`
+    : context.description
+
+  // Get source/destination accounts based on direction
+  const incomeAccount = await bucketBook.getAccount(context.bucketIncomeAcc)
+  const withdrawalAccount = await bucketBook.getAccount(context.bucketWithdrawalAcc)
+
+  let transactionCount = 0
+  let totalDistributed = 0
+
+  for (const bucketAccount of bucketAccounts) {
+    const remoteId = `${context.transactionId}_${bucketAccount.getNormalizedName()}`
+
+    const transaction = new Transaction(bucketBook)
+      .setDate(context.date)
+      .setAmount(amount)
+      .setDescription(description)
+      .addRemoteId(remoteId)
+
+    if (context.direction === 'deposit') {
+      // Savings (INCOMING) → Bucket (ASSET)
+      transaction.setCreditAccount(incomeAccount!)
+      transaction.setDebitAccount(bucketAccount)
+    } else {
+      // Bucket (ASSET) → Withdrawal (OUTGOING)
+      transaction.setCreditAccount(bucketAccount)
+      transaction.setDebitAccount(withdrawalAccount!)
+    }
+
+    await transaction.post()
+    transactionCount++
+    totalDistributed += amount
+  }
+
+  return {
+    success: true,
+    transactionCount,
+    totalDistributed,
+  }
+}

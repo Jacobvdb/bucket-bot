@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { Bkper } from 'bkper-js'
 import type { BkperWebhookPayload } from './types'
 import { detectSavings } from './webhook'
-import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets } from './bucket'
+import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets, distributeToOverrideBuckets } from './bucket'
 
 type Bindings = {
   BKPER_API_KEY: string
@@ -70,10 +70,18 @@ app.post('/webhook', async (c) => {
     return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount })
   }
 
-  // Check for bucket override (not yet implemented)
+  // Check for bucket override
   if (result.context.bucketOverride) {
-    console.log('Bucket override present, not yet implemented')
-    return c.json({ success: true, skipped: true })
+    console.log(`Bucket override: ${result.context.bucketOverride}`)
+    const distribution = await distributeToOverrideBuckets(bucketBook, result.context)
+
+    if (!distribution.success) {
+      console.log(`Override distribution failed: ${distribution.error}`)
+      return c.json({ success: false, error: distribution.error })
+    }
+
+    console.log(`Distributed ${distribution.totalDistributed} to ${distribution.transactionCount} override buckets`)
+    return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount })
   }
 
   // Basic distribution - no suffix, no override
@@ -142,10 +150,18 @@ app.post('/', async (c) => {
     return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount })
   }
 
-  // Check for bucket override (not yet implemented)
+  // Check for bucket override
   if (result.context.bucketOverride) {
-    console.log('Bucket override present, not yet implemented')
-    return c.json({ success: true, skipped: true })
+    console.log(`Bucket override: ${result.context.bucketOverride}`)
+    const distribution = await distributeToOverrideBuckets(bucketBook, result.context)
+
+    if (!distribution.success) {
+      console.log(`Override distribution failed: ${distribution.error}`)
+      return c.json({ success: false, error: distribution.error })
+    }
+
+    console.log(`Distributed ${distribution.totalDistributed} to ${distribution.transactionCount} override buckets`)
+    return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount })
   }
 
   // Basic distribution - no suffix, no override
