@@ -336,3 +336,82 @@ export async function distributeToOverrideBuckets(
     totalDistributed,
   }
 }
+
+/**
+ * Find all bucket transactions that originated from a specific GL transaction.
+ * Uses optimized query with hashtag and date, then filters by remoteId prefix.
+ *
+ * @param book - The bucket book to search
+ * @param hashtag - The bucket hashtag to filter by (e.g., "#bucket-sync")
+ * @param date - The transaction date in YYYY-MM-DD format
+ * @param glTransactionId - The GL transaction ID to find bucket transactions for
+ * @param expectedCount - Optional: stop early when this many transactions are found
+ * @returns Array of matching Transaction objects
+ */
+export async function findBucketTransactionsByGlId(
+  book: Book,
+  hashtag: string,
+  date: string,
+  glTransactionId: string,
+  expectedCount?: number
+): Promise<Transaction[]> {
+  const matchingTransactions: Transaction[] = []
+  const query = `${hashtag} on:${date}`
+  const remoteIdPrefix = `${glTransactionId}_`
+
+  let transactionList = await book.listTransactions(query)
+
+  while (true) {
+    const transactions = transactionList.getItems()
+
+    if (transactions.length === 0) {
+      break
+    }
+
+    for (const tx of transactions) {
+      const remoteIds = tx.getRemoteIds()
+      if (remoteIds) {
+        for (const remoteId of remoteIds) {
+          if (remoteId.startsWith(remoteIdPrefix)) {
+            matchingTransactions.push(tx)
+            // Early termination if we found all expected transactions
+            if (expectedCount && matchingTransactions.length >= expectedCount) {
+              return matchingTransactions
+            }
+            break // Don't add same transaction twice
+          }
+        }
+      }
+    }
+
+    const cursor = transactionList.getCursor()
+    if (!cursor) {
+      break
+    }
+
+    transactionList = await book.listTransactions(query, undefined, cursor)
+  }
+
+  return matchingTransactions
+}
+
+/**
+ * Trash bucket transactions using batch operation.
+ * Uses batchTrashTransactions with trashChecked=true to handle both
+ * unchecking and trashing in a single API call.
+ *
+ * @param book - The bucket book
+ * @param transactions - The transactions to trash
+ * @returns The number of transactions trashed
+ */
+export async function trashBucketTransactions(
+  book: Book,
+  transactions: Transaction[]
+): Promise<number> {
+  if (transactions.length === 0) {
+    return 0
+  }
+
+  await book.batchTrashTransactions(transactions, true)
+  return transactions.length
+}

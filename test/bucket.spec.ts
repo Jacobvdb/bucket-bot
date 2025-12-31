@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets, distributeToOverrideBuckets, accountMatchesSuffix } from '../src/bucket'
-import type { Book, Account, Group } from 'bkper-js'
+import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets, distributeToOverrideBuckets, accountMatchesSuffix, findBucketTransactionsByGlId, trashBucketTransactions } from '../src/bucket'
+import type { Book, Account, Group, TransactionList } from 'bkper-js'
 import type { SavingsContext } from '../src/types'
 import { Transaction } from 'bkper-js'
 
@@ -411,5 +411,151 @@ describe('accountMatchesSuffix', () => {
     const account = createMockAccount('ASSET', 'New Phone', '10', [group1, group2])
     const result = await accountMatchesSuffix(account, 'LONG')
     expect(result).toBe(true)
+  })
+})
+
+// Helper to create mock transaction with remoteIds
+function createMockTransactionWithRemoteIds(remoteIds: string[]): Transaction {
+  return {
+    getRemoteIds: () => remoteIds,
+  } as unknown as Transaction
+}
+
+// Helper to create mock TransactionList
+function createMockTransactionList(transactions: Transaction[], cursor?: string): TransactionList {
+  return {
+    getItems: () => transactions,
+    getCursor: () => cursor,
+  } as unknown as TransactionList
+}
+
+// Helper to create mock book with listTransactions and batchTrashTransactions
+function createMockBookForTransactions(
+  transactionLists: TransactionList[],
+  accounts?: Account[]
+): Book {
+  let callIndex = 0
+  return {
+    listTransactions: vi.fn().mockImplementation(() => {
+      const result = transactionLists[callIndex] || createMockTransactionList([])
+      callIndex++
+      return Promise.resolve(result)
+    }),
+    batchTrashTransactions: vi.fn().mockResolvedValue(undefined),
+    getAccounts: async () => accounts || [],
+  } as unknown as Book
+}
+
+describe('findBucketTransactionsByGlId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('finds transactions matching glTransactionId prefix in remoteIds', async () => {
+    const tx1 = createMockTransactionWithRemoteIds(['TX123_new_car'])
+    const tx2 = createMockTransactionWithRemoteIds(['TX123_emergency_fund'])
+    const tx3 = createMockTransactionWithRemoteIds(['TX999_other'])
+    const transactionList = createMockTransactionList([tx1, tx2, tx3])
+    const book = createMockBookForTransactions([transactionList])
+
+    const result = await findBucketTransactionsByGlId(book, '#bucket', '2025-01-01', 'TX123')
+
+    expect(result).toHaveLength(2)
+    expect(result).toContain(tx1)
+    expect(result).toContain(tx2)
+    expect(result).not.toContain(tx3)
+  })
+
+  it('uses optimized query with hashtag and date', async () => {
+    const transactionList = createMockTransactionList([])
+    const book = createMockBookForTransactions([transactionList])
+
+    await findBucketTransactionsByGlId(book, '#bucket-sync', '2025-01-15', 'TX123')
+
+    expect(book.listTransactions).toHaveBeenCalledWith('#bucket-sync on:2025-01-15')
+  })
+
+  it('paginates through multiple pages', async () => {
+    const tx1 = createMockTransactionWithRemoteIds(['TX123_bucket1'])
+    const tx2 = createMockTransactionWithRemoteIds(['TX123_bucket2'])
+    const page1 = createMockTransactionList([tx1], 'cursor-1')
+    const page2 = createMockTransactionList([tx2], undefined)
+    const book = createMockBookForTransactions([page1, page2])
+
+    const result = await findBucketTransactionsByGlId(book, '#bucket', '2025-01-01', 'TX123')
+
+    expect(result).toHaveLength(2)
+    expect(book.listTransactions).toHaveBeenCalledTimes(2)
+  })
+
+  it('terminates early when expectedCount is reached', async () => {
+    const tx1 = createMockTransactionWithRemoteIds(['TX123_bucket1'])
+    const tx2 = createMockTransactionWithRemoteIds(['TX123_bucket2'])
+    const tx3 = createMockTransactionWithRemoteIds(['TX123_bucket3'])
+    const page1 = createMockTransactionList([tx1, tx2, tx3], 'cursor-1')
+    const page2 = createMockTransactionList([createMockTransactionWithRemoteIds(['TX123_bucket4'])])
+    const book = createMockBookForTransactions([page1, page2])
+
+    const result = await findBucketTransactionsByGlId(book, '#bucket', '2025-01-01', 'TX123', 2)
+
+    expect(result).toHaveLength(2)
+    expect(book.listTransactions).toHaveBeenCalledTimes(1) // Early termination - no second page
+  })
+
+  it('returns empty array when no transactions match', async () => {
+    const tx1 = createMockTransactionWithRemoteIds(['OTHER_bucket1'])
+    const transactionList = createMockTransactionList([tx1])
+    const book = createMockBookForTransactions([transactionList])
+
+    const result = await findBucketTransactionsByGlId(book, '#bucket', '2025-01-01', 'TX123')
+
+    expect(result).toHaveLength(0)
+  })
+
+  it('handles transactions with multiple remoteIds', async () => {
+    const tx1 = createMockTransactionWithRemoteIds(['OTHER_id', 'TX123_bucket1'])
+    const transactionList = createMockTransactionList([tx1])
+    const book = createMockBookForTransactions([transactionList])
+
+    const result = await findBucketTransactionsByGlId(book, '#bucket', '2025-01-01', 'TX123')
+
+    expect(result).toHaveLength(1)
+    expect(result).toContain(tx1)
+  })
+
+  it('handles transactions with no remoteIds', async () => {
+    const tx1 = createMockTransactionWithRemoteIds([])
+    const transactionList = createMockTransactionList([tx1])
+    const book = createMockBookForTransactions([transactionList])
+
+    const result = await findBucketTransactionsByGlId(book, '#bucket', '2025-01-01', 'TX123')
+
+    expect(result).toHaveLength(0)
+  })
+})
+
+describe('trashBucketTransactions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('calls batchTrashTransactions with trashChecked=true', async () => {
+    const tx1 = createMockTransactionWithRemoteIds(['TX123_bucket1'])
+    const tx2 = createMockTransactionWithRemoteIds(['TX123_bucket2'])
+    const book = createMockBookForTransactions([])
+
+    const result = await trashBucketTransactions(book, [tx1, tx2])
+
+    expect(book.batchTrashTransactions).toHaveBeenCalledWith([tx1, tx2], true)
+    expect(result).toBe(2)
+  })
+
+  it('returns 0 when transactions array is empty', async () => {
+    const book = createMockBookForTransactions([])
+
+    const result = await trashBucketTransactions(book, [])
+
+    expect(book.batchTrashTransactions).not.toHaveBeenCalled()
+    expect(result).toBe(0)
   })
 })

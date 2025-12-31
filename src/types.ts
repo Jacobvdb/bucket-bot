@@ -131,3 +131,7 @@ export type SavingsDetectionResult = {
 } | {
   isSavings: false
 }
+
+export interface DeleteResult {
+  trashedCount: number
+}
