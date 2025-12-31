@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { Bkper } from 'bkper-js'
 import type { BkperWebhookPayload } from './types'
 import { detectSavings } from './webhook'
+import { validatePercentages } from './bucket'
 
 type Bindings = {
   BKPER_API_KEY: string
@@ -41,9 +42,19 @@ app.post('/webhook', async (c) => {
   // Get bucket book with accounts and groups
   const bucketBook = await bkper.getBook(result.context.bucketBookId, true, true)
 
-  // Log the book object to see what's included
   console.log('Bucket book name:', bucketBook.getName())
-  console.log('Bucket book object:', JSON.stringify(bucketBook, null, 2))
+
+  // Validate percentages sum to 100%
+  const validation = await validatePercentages(bucketBook)
+  if (!validation.isValid) {
+    console.log(`Percentage validation failed: ${validation.totalPercentage}% (${validation.accountCount} accounts)`)
+    return c.json({
+      success: false,
+      error: `Cannot distribute: bucket percentages sum to ${validation.totalPercentage}%, not 100%`,
+    })
+  }
+
+  console.log(`Percentage validation passed: ${validation.accountCount} accounts totaling 100%`)
 
   return c.json({ success: true })
 })
@@ -78,9 +89,19 @@ app.post('/', async (c) => {
   // Get bucket book with accounts and groups
   const bucketBook = await bkper.getBook(result.context.bucketBookId, true, true)
 
-  // Log the book object to see what's included
   console.log('Bucket book name:', bucketBook.getName())
-  console.log('Bucket book object:', JSON.stringify(bucketBook, null, 2))
+
+  // Validate percentages sum to 100%
+  const validation = await validatePercentages(bucketBook)
+  if (!validation.isValid) {
+    console.log(`Percentage validation failed: ${validation.totalPercentage}% (${validation.accountCount} accounts)`)
+    return c.json({
+      success: false,
+      error: `Cannot distribute: bucket percentages sum to ${validation.totalPercentage}%, not 100%`,
+    })
+  }
+
+  console.log(`Percentage validation passed: ${validation.accountCount} accounts totaling 100%`)
 
   return c.json({ success: true })
 })
