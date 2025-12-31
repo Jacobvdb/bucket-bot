@@ -104,11 +104,13 @@ export async function distributeToAllBuckets(
   for (const bucketAccount of bucketAccounts) {
     const percentage = Number(bucketAccount.getProperties().percentage)
     const amount = totalAmount * (percentage / 100)
+    const remoteId = `${context.transactionId}_${bucketAccount.getNormalizedName()}`
 
     const transaction = new Transaction(bucketBook)
       .setDate(context.date)
       .setAmount(amount)
       .setDescription(description)
+      .addRemoteId(remoteId)
 
     if (context.direction === 'deposit') {
       // Savings (INCOMING) → Bucket (ASSET)
@@ -214,11 +216,13 @@ export async function distributeToSuffixBuckets(
 
   for (const { account: bucketAccount, percentage } of recalculatedAccounts) {
     const amount = totalAmount * (percentage / 100)
+    const remoteId = `${context.transactionId}_${bucketAccount.getNormalizedName()}`
 
     const transaction = new Transaction(bucketBook)
       .setDate(context.date)
       .setAmount(amount)
       .setDescription(description)
+      .addRemoteId(remoteId)
 
     if (context.direction === 'deposit') {
       // Savings (INCOMING) → Bucket (ASSET)

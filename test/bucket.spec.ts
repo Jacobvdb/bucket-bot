@@ -1,7 +1,16 @@
-import { describe, it, expect } from 'vitest'
-import { validatePercentages, distributeToAllBuckets, accountMatchesSuffix } from '../src/bucket'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets, accountMatchesSuffix } from '../src/bucket'
 import type { Book, Account, Group } from 'bkper-js'
 import type { SavingsContext } from '../src/types'
+import { Transaction } from 'bkper-js'
+
+vi.mock('bkper-js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('bkper-js')>()
+  return {
+    ...actual,
+    Transaction: vi.fn(),
+  }
+})
 
 // Helper to create mock group
 function createMockGroup(name: string): Group {
@@ -15,11 +24,13 @@ function createMockAccount(
   type: 'ASSET' | 'LIABILITY' | 'INCOMING' | 'OUTGOING',
   name: string,
   percentage?: string,
-  groups?: Group[]
+  groups?: Group[],
+  normalizedName?: string
 ): Account {
   return {
     getType: () => type,
     getName: () => name,
+    getNormalizedName: () => normalizedName || name.toLowerCase().replace(/\s+/g, '_'),
     getProperties: () => percentage !== undefined ? { percentage } : {},
     getGroups: async () => groups || [],
   } as unknown as Account
@@ -34,9 +45,10 @@ function createSimpleMockAccount(type: 'ASSET' | 'LIABILITY' | 'INCOMING' | 'OUT
 }
 
 // Helper to create mock book with accounts
-function createMockBook(accounts: Account[]): Book {
+function createMockBook(accounts: Account[], namedAccounts?: Record<string, Account>): Book {
   return {
     getAccounts: async () => accounts,
+    getAccount: async (name: string) => namedAccounts?.[name] || null,
   } as unknown as Book
 }
 
@@ -60,6 +72,23 @@ function createMockContext(overrides: Partial<SavingsContext> = {}): SavingsCont
     savingsGroupName: undefined,
     ...overrides,
   }
+}
+
+// Helper to create a mock transaction that tracks method calls
+function createMockTransaction() {
+  const calls: { method: string; args: unknown[] }[] = []
+  const mockTx: Record<string, unknown> = {}
+
+  mockTx.setDate = vi.fn().mockImplementation((...args: unknown[]) => { calls.push({ method: 'setDate', args }); return mockTx })
+  mockTx.setAmount = vi.fn().mockImplementation((...args: unknown[]) => { calls.push({ method: 'setAmount', args }); return mockTx })
+  mockTx.setDescription = vi.fn().mockImplementation((...args: unknown[]) => { calls.push({ method: 'setDescription', args }); return mockTx })
+  mockTx.addRemoteId = vi.fn().mockImplementation((...args: unknown[]) => { calls.push({ method: 'addRemoteId', args }); return mockTx })
+  mockTx.setCreditAccount = vi.fn().mockImplementation((...args: unknown[]) => { calls.push({ method: 'setCreditAccount', args }); return mockTx })
+  mockTx.setDebitAccount = vi.fn().mockImplementation((...args: unknown[]) => { calls.push({ method: 'setDebitAccount', args }); return mockTx })
+  mockTx.post = vi.fn().mockResolvedValue(mockTx)
+  mockTx.getCalls = () => calls
+
+  return mockTx
 }
 
 describe('validatePercentages', () => {
@@ -144,6 +173,10 @@ describe('validatePercentages', () => {
 })
 
 describe('distributeToAllBuckets', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('skips distribution when suffix is present', async () => {
     const book = createMockBook([
       createMockAccount('ASSET', 'Bucket1', '100'),
@@ -170,9 +203,69 @@ describe('distributeToAllBuckets', () => {
     expect(result.skipped).toBe(true)
   })
 
-  // Note: Integration tests for actual transaction creation would require
-  // mocking the full bkper-js Transaction class which has complex internals.
-  // The actual distribution logic is tested via deployment/manual testing.
+  it('sets remote ID with format transactionId_normalizedAccountName', async () => {
+    const mockTx = createMockTransaction()
+    vi.mocked(Transaction).mockImplementation(() => mockTx as unknown as Transaction)
+
+    const savingsAccount = createMockAccount('INCOMING', 'Savings')
+    const bucketAccount = createMockAccount('ASSET', 'New Car', '100', [], 'new_car')
+    const book = createMockBook(
+      [savingsAccount, bucketAccount],
+      { 'Savings': savingsAccount, 'Withdrawal': createMockAccount('OUTGOING', 'Withdrawal') }
+    )
+    const context = createMockContext({ transactionId: 'ABCDEF123' })
+
+    await distributeToAllBuckets(book, context)
+
+    expect(mockTx.addRemoteId).toHaveBeenCalledWith('ABCDEF123_new_car')
+  })
+
+  it('creates unique remote IDs for multiple bucket accounts', async () => {
+    const mockTransactions: ReturnType<typeof createMockTransaction>[] = []
+    vi.mocked(Transaction).mockImplementation(() => {
+      const mockTx = createMockTransaction()
+      mockTransactions.push(mockTx)
+      return mockTx as unknown as Transaction
+    })
+
+    const savingsAccount = createMockAccount('INCOMING', 'Savings')
+    const bucket1 = createMockAccount('ASSET', 'New Car', '50', [], 'new_car')
+    const bucket2 = createMockAccount('ASSET', 'Emergency Fund', '50', [], 'emergency_fund')
+    const book = createMockBook(
+      [savingsAccount, bucket1, bucket2],
+      { 'Savings': savingsAccount, 'Withdrawal': createMockAccount('OUTGOING', 'Withdrawal') }
+    )
+    const context = createMockContext({ transactionId: 'TX123' })
+
+    await distributeToAllBuckets(book, context)
+
+    expect(mockTransactions).toHaveLength(2)
+    expect(mockTransactions[0].addRemoteId).toHaveBeenCalledWith('TX123_new_car')
+    expect(mockTransactions[1].addRemoteId).toHaveBeenCalledWith('TX123_emergency_fund')
+  })
+})
+
+describe('distributeToSuffixBuckets', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('sets remote ID with format transactionId_normalizedAccountName', async () => {
+    const mockTx = createMockTransaction()
+    vi.mocked(Transaction).mockImplementation(() => mockTx as unknown as Transaction)
+
+    const savingsAccount = createMockAccount('INCOMING', 'Savings')
+    const bucketAccount = createMockAccount('ASSET', 'New Car LONG', '100', [], 'new_car_long')
+    const book = createMockBook(
+      [savingsAccount, bucketAccount],
+      { 'Savings': savingsAccount, 'Withdrawal': createMockAccount('OUTGOING', 'Withdrawal') }
+    )
+    const context = createMockContext({ transactionId: 'ABCDEF123', suffix: 'LONG' })
+
+    await distributeToSuffixBuckets(book, context)
+
+    expect(mockTx.addRemoteId).toHaveBeenCalledWith('ABCDEF123_new_car_long')
+  })
 })
 
 describe('accountMatchesSuffix', () => {
