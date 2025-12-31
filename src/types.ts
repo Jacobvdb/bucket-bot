@@ -125,7 +125,7 @@ export interface SavingsContext {
   savingsGroupName: string | undefined
 }
 
-export interface SavingsDetectionResult {
+export type SavingsDetectionResult = {
   isSavings: true
   context: SavingsContext
 } | {
