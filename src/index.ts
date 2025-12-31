@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { Bkper } from 'bkper-js'
 import type { BkperWebhookPayload } from './types'
 import { detectSavings } from './webhook'
-import { validatePercentages } from './bucket'
+import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets } from './bucket'
 
 type Bindings = {
   BKPER_API_KEY: string
@@ -56,7 +56,32 @@ app.post('/webhook', async (c) => {
 
   console.log(`Percentage validation passed: ${validation.accountCount} accounts totaling 100%`)
 
-  return c.json({ success: true })
+  // Check for suffix-based distribution
+  if (result.context.suffix) {
+    console.log(`Suffix detected: ${result.context.suffix}`)
+    const distribution = await distributeToSuffixBuckets(bucketBook, result.context)
+
+    if (!distribution.success) {
+      console.log(`Suffix distribution failed: ${distribution.error}`)
+      return c.json({ success: false, error: distribution.error })
+    }
+
+    console.log(`Distributed ${distribution.totalDistributed} to ${distribution.transactionCount} suffix-matched buckets`)
+    return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount })
+  }
+
+  // Check for bucket override (not yet implemented)
+  if (result.context.bucketOverride) {
+    console.log('Bucket override present, not yet implemented')
+    return c.json({ success: true, skipped: true })
+  }
+
+  // Basic distribution - no suffix, no override
+  const distribution = await distributeToAllBuckets(bucketBook, result.context)
+
+  console.log(`Distributed ${distribution.totalDistributed} to ${distribution.transactionCount} buckets`)
+
+  return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount })
 })
 
 app.post('/', async (c) => {
@@ -103,7 +128,32 @@ app.post('/', async (c) => {
 
   console.log(`Percentage validation passed: ${validation.accountCount} accounts totaling 100%`)
 
-  return c.json({ success: true })
+  // Check for suffix-based distribution
+  if (result.context.suffix) {
+    console.log(`Suffix detected: ${result.context.suffix}`)
+    const distribution = await distributeToSuffixBuckets(bucketBook, result.context)
+
+    if (!distribution.success) {
+      console.log(`Suffix distribution failed: ${distribution.error}`)
+      return c.json({ success: false, error: distribution.error })
+    }
+
+    console.log(`Distributed ${distribution.totalDistributed} to ${distribution.transactionCount} suffix-matched buckets`)
+    return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount })
+  }
+
+  // Check for bucket override (not yet implemented)
+  if (result.context.bucketOverride) {
+    console.log('Bucket override present, not yet implemented')
+    return c.json({ success: true, skipped: true })
+  }
+
+  // Basic distribution - no suffix, no override
+  const distribution = await distributeToAllBuckets(bucketBook, result.context)
+
+  console.log(`Distributed ${distribution.totalDistributed} to ${distribution.transactionCount} buckets`)
+
+  return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount })
 })
 
 export default app
