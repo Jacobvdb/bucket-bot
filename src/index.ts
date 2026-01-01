@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { Bkper } from 'bkper-js'
 import type { BkperWebhookPayload } from './types'
 import { detectSavings } from './webhook'
-import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets, distributeToOverrideBuckets, findBucketTransactionsByGlId, trashBucketTransactions } from './bucket'
+import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets, distributeToOverrideBuckets, findBucketTransactionsByGlId, trashBucketTransactions, validateBalances } from './bucket'
 
 type Bindings = {
   BKPER_API_KEY: string
@@ -101,7 +101,23 @@ app.post('/webhook', async (c) => {
     }
 
     console.log(`Distributed ${distribution.totalDistributed} to ${distribution.transactionCount} suffix-matched buckets`)
-    return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount })
+
+    // Validate balances after distribution
+    const glBook = await bkper.getBook(payload.bookId, true, true)
+    const balanceValidation = await validateBalances(glBook, bucketBook)
+    console.log(`Balance validation: GL=${balanceValidation.glTotal}, Bucket=${balanceValidation.bucketTotal}, Diff=${balanceValidation.difference}, Balanced=${balanceValidation.isBalanced}`)
+
+    // Check transactions if balances match
+    let checkedCount = 0
+    if (balanceValidation.isBalanced && distribution.transactions && distribution.transactions.length > 0) {
+      await bucketBook.batchCheckTransactions(distribution.transactions)
+      checkedCount = distribution.transactions.length
+      console.log(`Checked ${checkedCount} transactions`)
+    } else if (!balanceValidation.isBalanced) {
+      console.log(`Balance mismatch - transactions NOT checked`)
+    }
+
+    return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount, balanceValidation, checkedCount })
   }
 
   // Check for bucket override
@@ -115,7 +131,23 @@ app.post('/webhook', async (c) => {
     }
 
     console.log(`Distributed ${distribution.totalDistributed} to ${distribution.transactionCount} override buckets`)
-    return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount })
+
+    // Validate balances after distribution
+    const glBook = await bkper.getBook(payload.bookId, true, true)
+    const balanceValidation = await validateBalances(glBook, bucketBook)
+    console.log(`Balance validation: GL=${balanceValidation.glTotal}, Bucket=${balanceValidation.bucketTotal}, Diff=${balanceValidation.difference}, Balanced=${balanceValidation.isBalanced}`)
+
+    // Check transactions if balances match
+    let checkedCount = 0
+    if (balanceValidation.isBalanced && distribution.transactions && distribution.transactions.length > 0) {
+      await bucketBook.batchCheckTransactions(distribution.transactions)
+      checkedCount = distribution.transactions.length
+      console.log(`Checked ${checkedCount} transactions`)
+    } else if (!balanceValidation.isBalanced) {
+      console.log(`Balance mismatch - transactions NOT checked`)
+    }
+
+    return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount, balanceValidation, checkedCount })
   }
 
   // Basic distribution - no suffix, no override
@@ -123,7 +155,22 @@ app.post('/webhook', async (c) => {
 
   console.log(`Distributed ${distribution.totalDistributed} to ${distribution.transactionCount} buckets`)
 
-  return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount })
+  // Validate balances after distribution
+  const glBook = await bkper.getBook(payload.bookId, true, true)
+  const balanceValidation = await validateBalances(glBook, bucketBook)
+  console.log(`Balance validation: GL=${balanceValidation.glTotal}, Bucket=${balanceValidation.bucketTotal}, Diff=${balanceValidation.difference}, Balanced=${balanceValidation.isBalanced}`)
+
+  // Check transactions if balances match
+  let checkedCount = 0
+  if (balanceValidation.isBalanced && distribution.transactions && distribution.transactions.length > 0) {
+    await bucketBook.batchCheckTransactions(distribution.transactions)
+    checkedCount = distribution.transactions.length
+    console.log(`Checked ${checkedCount} transactions`)
+  } else if (!balanceValidation.isBalanced) {
+    console.log(`Balance mismatch - transactions NOT checked`)
+  }
+
+  return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount, balanceValidation, checkedCount })
 })
 
 app.post('/', async (c) => {
@@ -215,7 +262,23 @@ app.post('/', async (c) => {
     }
 
     console.log(`Distributed ${distribution.totalDistributed} to ${distribution.transactionCount} suffix-matched buckets`)
-    return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount })
+
+    // Validate balances after distribution
+    const glBook = await bkper.getBook(payload.bookId, true, true)
+    const balanceValidation = await validateBalances(glBook, bucketBook)
+    console.log(`Balance validation: GL=${balanceValidation.glTotal}, Bucket=${balanceValidation.bucketTotal}, Diff=${balanceValidation.difference}, Balanced=${balanceValidation.isBalanced}`)
+
+    // Check transactions if balances match
+    let checkedCount = 0
+    if (balanceValidation.isBalanced && distribution.transactions && distribution.transactions.length > 0) {
+      await bucketBook.batchCheckTransactions(distribution.transactions)
+      checkedCount = distribution.transactions.length
+      console.log(`Checked ${checkedCount} transactions`)
+    } else if (!balanceValidation.isBalanced) {
+      console.log(`Balance mismatch - transactions NOT checked`)
+    }
+
+    return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount, balanceValidation, checkedCount })
   }
 
   // Check for bucket override
@@ -229,7 +292,23 @@ app.post('/', async (c) => {
     }
 
     console.log(`Distributed ${distribution.totalDistributed} to ${distribution.transactionCount} override buckets`)
-    return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount })
+
+    // Validate balances after distribution
+    const glBook = await bkper.getBook(payload.bookId, true, true)
+    const balanceValidation = await validateBalances(glBook, bucketBook)
+    console.log(`Balance validation: GL=${balanceValidation.glTotal}, Bucket=${balanceValidation.bucketTotal}, Diff=${balanceValidation.difference}, Balanced=${balanceValidation.isBalanced}`)
+
+    // Check transactions if balances match
+    let checkedCount = 0
+    if (balanceValidation.isBalanced && distribution.transactions && distribution.transactions.length > 0) {
+      await bucketBook.batchCheckTransactions(distribution.transactions)
+      checkedCount = distribution.transactions.length
+      console.log(`Checked ${checkedCount} transactions`)
+    } else if (!balanceValidation.isBalanced) {
+      console.log(`Balance mismatch - transactions NOT checked`)
+    }
+
+    return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount, balanceValidation, checkedCount })
   }
 
   // Basic distribution - no suffix, no override
@@ -237,7 +316,22 @@ app.post('/', async (c) => {
 
   console.log(`Distributed ${distribution.totalDistributed} to ${distribution.transactionCount} buckets`)
 
-  return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount })
+  // Validate balances after distribution
+  const glBook = await bkper.getBook(payload.bookId, true, true)
+  const balanceValidation = await validateBalances(glBook, bucketBook)
+  console.log(`Balance validation: GL=${balanceValidation.glTotal}, Bucket=${balanceValidation.bucketTotal}, Diff=${balanceValidation.difference}, Balanced=${balanceValidation.isBalanced}`)
+
+  // Check transactions if balances match
+  let checkedCount = 0
+  if (balanceValidation.isBalanced && distribution.transactions && distribution.transactions.length > 0) {
+    await bucketBook.batchCheckTransactions(distribution.transactions)
+    checkedCount = distribution.transactions.length
+    console.log(`Checked ${checkedCount} transactions`)
+  } else if (!balanceValidation.isBalanced) {
+    console.log(`Balance mismatch - transactions NOT checked`)
+  }
+
+  return c.json({ success: true, distributed: distribution.totalDistributed, transactions: distribution.transactionCount, balanceValidation, checkedCount })
 })
 
 export default app

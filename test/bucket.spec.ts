@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets, distributeToOverrideBuckets, accountMatchesSuffix, findBucketTransactionsByGlId, trashBucketTransactions } from '../src/bucket'
-import type { Book, Account, Group, TransactionList } from 'bkper-js'
+import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets, distributeToOverrideBuckets, accountMatchesSuffix, findBucketTransactionsByGlId, trashBucketTransactions, validateBalances } from '../src/bucket'
+import type { Book, Account, Group, TransactionList, BalancesContainer, BalancesReport } from 'bkper-js'
 import type { SavingsContext } from '../src/types'
 import { Transaction } from 'bkper-js'
 
@@ -557,5 +557,179 @@ describe('trashBucketTransactions', () => {
 
     expect(book.batchTrashTransactions).not.toHaveBeenCalled()
     expect(result).toBe(0)
+  })
+})
+
+// Helper to create mock BalancesContainer
+function createMockBalancesContainer(cumulativeBalance: number): BalancesContainer {
+  return {
+    getCumulativeBalance: () => ({
+      toNumber: () => cumulativeBalance,
+    }),
+  } as unknown as BalancesContainer
+}
+
+// Helper to create mock BalancesReport
+function createMockBalancesReport(containers: BalancesContainer[]): BalancesReport {
+  return {
+    getBalancesContainers: () => containers,
+  } as unknown as BalancesReport
+}
+
+// Helper to create mock account for validation tests
+function createMockAccountForValidation(
+  type: 'ASSET' | 'LIABILITY' | 'INCOMING' | 'OUTGOING',
+  name: string,
+  properties: Record<string, string> = {}
+): Account {
+  return {
+    getType: () => type,
+    getName: () => name,
+    getProperties: () => properties,
+  } as unknown as Account
+}
+
+// Helper to create mock book with accounts and balances for validation
+function createMockBookForValidation(
+  accounts: Account[],
+  balancesReport: BalancesReport
+): Book {
+  return {
+    getAccounts: vi.fn().mockResolvedValue(accounts),
+    getBalancesReport: vi.fn().mockResolvedValue(balancesReport),
+  } as unknown as Book
+}
+
+describe('validateBalances', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns isBalanced true when GL and bucket totals match', async () => {
+    // GL book with 2 savings accounts
+    const glAccounts = [
+      createMockAccountForValidation('ASSET', 'Savings1', { savings: 'true' }),
+      createMockAccountForValidation('ASSET', 'Savings2', { savings: 'true' }),
+      createMockAccountForValidation('ASSET', 'Other', {}),
+    ]
+    const glReport = createMockBalancesReport([
+      createMockBalancesContainer(500),
+      createMockBalancesContainer(500),
+    ])
+    const glBook = createMockBookForValidation(glAccounts, glReport)
+
+    // Bucket book with 3 percentage accounts
+    const bucketAccounts = [
+      createMockAccountForValidation('ASSET', 'Bucket1', { percentage: '30' }),
+      createMockAccountForValidation('ASSET', 'Bucket2', { percentage: '40' }),
+      createMockAccountForValidation('ASSET', 'Bucket3', { percentage: '30' }),
+      createMockAccountForValidation('INCOMING', 'Income', {}),
+    ]
+    const bucketReport = createMockBalancesReport([
+      createMockBalancesContainer(300),
+      createMockBalancesContainer(400),
+      createMockBalancesContainer(300),
+    ])
+    const bucketBook = createMockBookForValidation(bucketAccounts, bucketReport)
+
+    const result = await validateBalances(glBook, bucketBook)
+
+    expect(result.isBalanced).toBe(true)
+    expect(result.glTotal).toBe(1000)
+    expect(result.bucketTotal).toBe(1000)
+    expect(result.difference).toBe(0)
+  })
+
+  it('returns isBalanced false when GL total is greater than bucket total', async () => {
+    const glAccounts = [
+      createMockAccountForValidation('ASSET', 'Savings1', { savings: 'true' }),
+    ]
+    const glReport = createMockBalancesReport([
+      createMockBalancesContainer(1000),
+    ])
+    const glBook = createMockBookForValidation(glAccounts, glReport)
+
+    const bucketAccounts = [
+      createMockAccountForValidation('ASSET', 'Bucket1', { percentage: '100' }),
+    ]
+    const bucketReport = createMockBalancesReport([
+      createMockBalancesContainer(800),
+    ])
+    const bucketBook = createMockBookForValidation(bucketAccounts, bucketReport)
+
+    const result = await validateBalances(glBook, bucketBook)
+
+    expect(result.isBalanced).toBe(false)
+    expect(result.glTotal).toBe(1000)
+    expect(result.bucketTotal).toBe(800)
+    expect(result.difference).toBe(200)
+  })
+
+  it('returns isBalanced false when bucket total is greater than GL total', async () => {
+    const glAccounts = [
+      createMockAccountForValidation('ASSET', 'Savings1', { savings: 'true' }),
+    ]
+    const glReport = createMockBalancesReport([
+      createMockBalancesContainer(500),
+    ])
+    const glBook = createMockBookForValidation(glAccounts, glReport)
+
+    const bucketAccounts = [
+      createMockAccountForValidation('ASSET', 'Bucket1', { percentage: '100' }),
+    ]
+    const bucketReport = createMockBalancesReport([
+      createMockBalancesContainer(700),
+    ])
+    const bucketBook = createMockBookForValidation(bucketAccounts, bucketReport)
+
+    const result = await validateBalances(glBook, bucketBook)
+
+    expect(result.isBalanced).toBe(false)
+    expect(result.glTotal).toBe(500)
+    expect(result.bucketTotal).toBe(700)
+    expect(result.difference).toBe(-200)
+  })
+
+  it('treats small differences within tolerance as balanced', async () => {
+    const glAccounts = [
+      createMockAccountForValidation('ASSET', 'Savings1', { savings: 'true' }),
+    ]
+    const glReport = createMockBalancesReport([
+      createMockBalancesContainer(1000),
+    ])
+    const glBook = createMockBookForValidation(glAccounts, glReport)
+
+    const bucketAccounts = [
+      createMockAccountForValidation('ASSET', 'Bucket1', { percentage: '100' }),
+    ]
+    const bucketReport = createMockBalancesReport([
+      createMockBalancesContainer(1000.005),
+    ])
+    const bucketBook = createMockBookForValidation(bucketAccounts, bucketReport)
+
+    const result = await validateBalances(glBook, bucketBook)
+
+    expect(result.isBalanced).toBe(true)
+  })
+
+  it('returns zero totals when no matching accounts exist', async () => {
+    const glAccounts = [
+      createMockAccountForValidation('ASSET', 'Other', {}),
+    ]
+    const glReport = createMockBalancesReport([])
+    const glBook = createMockBookForValidation(glAccounts, glReport)
+
+    const bucketAccounts = [
+      createMockAccountForValidation('INCOMING', 'Income', {}),
+    ]
+    const bucketReport = createMockBalancesReport([])
+    const bucketBook = createMockBookForValidation(bucketAccounts, bucketReport)
+
+    const result = await validateBalances(glBook, bucketBook)
+
+    expect(result.isBalanced).toBe(true)
+    expect(result.glTotal).toBe(0)
+    expect(result.bucketTotal).toBe(0)
+    expect(result.difference).toBe(0)
   })
 })

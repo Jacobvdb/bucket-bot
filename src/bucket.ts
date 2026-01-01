@@ -9,12 +9,20 @@ export interface PercentageValidationResult {
   accountCount: number
 }
 
+export interface ValidationResult {
+  isBalanced: boolean
+  glTotal: number
+  bucketTotal: number
+  difference: number
+}
+
 export interface DistributionResult {
   success: boolean
   transactionCount: number
   totalDistributed: number
   skipped?: boolean
   error?: string
+  transactions?: Transaction[]
 }
 
 /**
@@ -100,6 +108,7 @@ export async function distributeToAllBuckets(
 
   let transactionCount = 0
   let totalDistributed = 0
+  const transactions: Transaction[] = []
 
   for (const bucketAccount of bucketAccounts) {
     const percentage = Number(bucketAccount.getProperties().percentage)
@@ -122,7 +131,8 @@ export async function distributeToAllBuckets(
       transaction.setDebitAccount(withdrawalAccount!)
     }
 
-    await transaction.post()
+    const postedTransaction = await transaction.post()
+    transactions.push(postedTransaction)
     transactionCount++
     totalDistributed += amount
   }
@@ -131,6 +141,7 @@ export async function distributeToAllBuckets(
     success: true,
     transactionCount,
     totalDistributed,
+    transactions,
   }
 }
 
@@ -213,6 +224,7 @@ export async function distributeToSuffixBuckets(
 
   let transactionCount = 0
   let totalDistributed = 0
+  const transactions: Transaction[] = []
 
   for (const { account: bucketAccount, percentage } of recalculatedAccounts) {
     const amount = totalAmount * (percentage / 100)
@@ -234,7 +246,8 @@ export async function distributeToSuffixBuckets(
       transaction.setDebitAccount(withdrawalAccount!)
     }
 
-    await transaction.post()
+    const postedTransaction = await transaction.post()
+    transactions.push(postedTransaction)
     transactionCount++
     totalDistributed += amount
   }
@@ -243,6 +256,7 @@ export async function distributeToSuffixBuckets(
     success: true,
     transactionCount,
     totalDistributed,
+    transactions,
   }
 }
 
@@ -305,6 +319,7 @@ export async function distributeToOverrideBuckets(
 
   let transactionCount = 0
   let totalDistributed = 0
+  const transactions: Transaction[] = []
 
   for (const bucketAccount of bucketAccounts) {
     const remoteId = `${context.transactionId}_${bucketAccount.getNormalizedName()}`
@@ -325,7 +340,8 @@ export async function distributeToOverrideBuckets(
       transaction.setDebitAccount(withdrawalAccount!)
     }
 
-    await transaction.post()
+    const postedTransaction = await transaction.post()
+    transactions.push(postedTransaction)
     transactionCount++
     totalDistributed += amount
   }
@@ -334,6 +350,7 @@ export async function distributeToOverrideBuckets(
     success: true,
     transactionCount,
     totalDistributed,
+    transactions,
   }
 }
 
@@ -414,4 +431,96 @@ export async function trashBucketTransactions(
 
   await book.batchTrashTransactions(transactions, true)
   return transactions.length
+}
+
+const BALANCE_TOLERANCE = 0.01
+
+/**
+ * Get total balance for GL accounts with savings:true property.
+ * Loads accounts, filters by property, then queries balances.
+ */
+async function getGlSavingsTotal(glBook: Book): Promise<number> {
+  const accounts = await glBook.getAccounts()
+
+  // Filter for accounts with savings:true property
+  const savingsAccounts = accounts.filter(account => {
+    const props = account.getProperties()
+    return props.savings === 'true'
+  })
+
+  if (savingsAccounts.length === 0) {
+    return 0
+  }
+
+  // Build OR query for all savings accounts
+  const query = savingsAccounts
+    .map(acc => `account:"${acc.getName()}"`)
+    .join(' or ')
+
+  const balancesReport = await glBook.getBalancesReport(query)
+  const containers = balancesReport.getBalancesContainers()
+
+  let total = 0
+  for (const container of containers) {
+    total += container.getCumulativeBalance().toNumber()
+  }
+
+  return total
+}
+
+/**
+ * Get total balance for bucket accounts with percentage property.
+ * Loads accounts, filters by property, then queries balances.
+ */
+async function getBucketTotal(bucketBook: Book): Promise<number> {
+  const accounts = await bucketBook.getAccounts()
+
+  // Filter for ASSET accounts with percentage property
+  const bucketAccounts = accounts.filter(account => {
+    if (account.getType() !== 'ASSET') return false
+    const props = account.getProperties()
+    return props.percentage !== undefined
+  })
+
+  if (bucketAccounts.length === 0) {
+    return 0
+  }
+
+  // Build OR query for all bucket accounts
+  const query = bucketAccounts
+    .map(acc => `account:"${acc.getName()}"`)
+    .join(' or ')
+
+  const balancesReport = await bucketBook.getBalancesReport(query)
+  const containers = balancesReport.getBalancesContainers()
+
+  let total = 0
+  for (const container of containers) {
+    total += container.getCumulativeBalance().toNumber()
+  }
+
+  return total
+}
+
+/**
+ * Validate that GL savings accounts total matches bucket percentage accounts total.
+ *
+ * @param glBook - The GL book containing savings:true accounts
+ * @param bucketBook - The bucket book containing percentage accounts
+ * @returns ValidationResult with isBalanced, glTotal, bucketTotal, and difference
+ */
+export async function validateBalances(
+  glBook: Book,
+  bucketBook: Book
+): Promise<ValidationResult> {
+  const glTotal = await getGlSavingsTotal(glBook)
+  const bucketTotal = await getBucketTotal(bucketBook)
+  const difference = glTotal - bucketTotal
+
+  return {
+    isBalanced: Math.abs(difference) < BALANCE_TOLERANCE,
+    glTotal,
+    bucketTotal,
+    difference,
+  }
 }
