@@ -78,7 +78,7 @@ export interface BkperBook {
 
 export interface BkperWebhookPayload {
   id: string
-  type: 'TRANSACTION_POSTED' | 'TRANSACTION_UPDATED' | 'TRANSACTION_DELETED' | 'TRANSACTION_RESTORED'
+  type: 'TRANSACTION_POSTED' | 'TRANSACTION_UPDATED' | 'TRANSACTION_DELETED' | 'TRANSACTION_RESTORED' | 'TRANSACTION_UNTRASHED'
   bookId: string
   resource: string
   book: BkperBook

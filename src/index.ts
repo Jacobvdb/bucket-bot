@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { Bkper } from 'bkper-js'
 import type { BkperWebhookPayload } from './types'
 import { detectSavings } from './webhook'
-import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets, distributeToOverrideBuckets, findBucketTransactionsByGlId, trashBucketTransactions, validateBalances } from './bucket'
+import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets, distributeToOverrideBuckets, cleanupBucketTransactions, validateBalances } from './bucket'
 
 type Bindings = {
   BKPER_API_KEY: string
@@ -48,36 +48,40 @@ app.post('/webhook', async (c) => {
   if (payload.type === 'TRANSACTION_DELETED') {
     console.log('Handling TRANSACTION_DELETED')
 
-    const hashtag = result.context.bucketHashtag || ''
-    const date = result.context.date
-    const glTransactionId = result.context.transactionId
-
-    // Get expected count from bucket accounts for early termination
-    const accounts = await bucketBook.getAccounts()
-    const bucketAccounts = accounts.filter(acc =>
-      acc.getType() === 'ASSET' && acc.getProperties().percentage !== undefined
-    )
-    const expectedCount = bucketAccounts.length
-
-    // Find bucket transactions for this GL transaction
-    const bucketTransactions = await findBucketTransactionsByGlId(
+    const trashedCount = await cleanupBucketTransactions(
       bucketBook,
-      hashtag,
-      date,
-      glTransactionId,
-      expectedCount
+      result.context.bucketHashtag || '',
+      result.context.date,
+      result.context.transactionId
     )
-
-    console.log(`Found ${bucketTransactions.length} bucket transactions to trash`)
-
-    // Batch trash them
-    const trashedCount = await trashBucketTransactions(bucketBook, bucketTransactions)
 
     console.log(`Trashed ${trashedCount} bucket transactions`)
     return c.json({ success: true, trashedCount })
   }
 
-  // Handle TRANSACTION_POSTED - distribute to buckets
+  // Handle TRANSACTION_UPDATED - cleanup old transactions, then redistribute
+  if (payload.type === 'TRANSACTION_UPDATED') {
+    console.log('Handling TRANSACTION_UPDATED')
+
+    const trashedCount = await cleanupBucketTransactions(
+      bucketBook,
+      result.context.bucketHashtag || '',
+      result.context.date,
+      result.context.transactionId
+    )
+
+    console.log(`Cleaned up ${trashedCount} bucket transactions before redistribution`)
+    // Fall through to distribution logic below
+  }
+
+  // Handle TRANSACTION_UNTRASHED - create new bucket transactions
+  // (old bucket transactions stay in trash, new ones created with timestamped remote IDs)
+  if (payload.type === 'TRANSACTION_UNTRASHED') {
+    console.log('Handling TRANSACTION_UNTRASHED')
+    // Fall through to distribution logic below
+  }
+
+  // Handle TRANSACTION_POSTED / TRANSACTION_UPDATED / TRANSACTION_UNTRASHED - distribute to buckets
   // Validate percentages sum to 100%
   const validation = await validatePercentages(bucketBook)
   if (!validation.isValid) {
@@ -209,36 +213,40 @@ app.post('/', async (c) => {
   if (payload.type === 'TRANSACTION_DELETED') {
     console.log('Handling TRANSACTION_DELETED')
 
-    const hashtag = result.context.bucketHashtag || ''
-    const date = result.context.date
-    const glTransactionId = result.context.transactionId
-
-    // Get expected count from bucket accounts for early termination
-    const accounts = await bucketBook.getAccounts()
-    const bucketAccounts = accounts.filter(acc =>
-      acc.getType() === 'ASSET' && acc.getProperties().percentage !== undefined
-    )
-    const expectedCount = bucketAccounts.length
-
-    // Find bucket transactions for this GL transaction
-    const bucketTransactions = await findBucketTransactionsByGlId(
+    const trashedCount = await cleanupBucketTransactions(
       bucketBook,
-      hashtag,
-      date,
-      glTransactionId,
-      expectedCount
+      result.context.bucketHashtag || '',
+      result.context.date,
+      result.context.transactionId
     )
-
-    console.log(`Found ${bucketTransactions.length} bucket transactions to trash`)
-
-    // Batch trash them
-    const trashedCount = await trashBucketTransactions(bucketBook, bucketTransactions)
 
     console.log(`Trashed ${trashedCount} bucket transactions`)
     return c.json({ success: true, trashedCount })
   }
 
-  // Handle TRANSACTION_POSTED - distribute to buckets
+  // Handle TRANSACTION_UPDATED - cleanup old transactions, then redistribute
+  if (payload.type === 'TRANSACTION_UPDATED') {
+    console.log('Handling TRANSACTION_UPDATED')
+
+    const trashedCount = await cleanupBucketTransactions(
+      bucketBook,
+      result.context.bucketHashtag || '',
+      result.context.date,
+      result.context.transactionId
+    )
+
+    console.log(`Cleaned up ${trashedCount} bucket transactions before redistribution`)
+    // Fall through to distribution logic below
+  }
+
+  // Handle TRANSACTION_UNTRASHED - create new bucket transactions
+  // (old bucket transactions stay in trash, new ones created with timestamped remote IDs)
+  if (payload.type === 'TRANSACTION_UNTRASHED') {
+    console.log('Handling TRANSACTION_UNTRASHED')
+    // Fall through to distribution logic below
+  }
+
+  // Handle TRANSACTION_POSTED / TRANSACTION_UPDATED / TRANSACTION_UNTRASHED - distribute to buckets
   // Validate percentages sum to 100%
   const validation = await validatePercentages(bucketBook)
   if (!validation.isValid) {
