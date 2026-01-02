@@ -3,6 +3,15 @@ import type { Book, Account } from 'bkper-js'
 import type { SavingsContext } from './types'
 import { extractSuffix } from './webhook'
 
+/**
+ * Build a unique remote ID with timestamp to avoid idempotency conflicts.
+ * Format: {transactionId}_{normalizedAccountName}_{timestamp}
+ */
+function buildRemoteId(transactionId: string, normalizedAccountName: string): string {
+  const timestamp = Date.now()
+  return `${transactionId}_${normalizedAccountName}_${timestamp}`
+}
+
 export interface PercentageValidationResult {
   isValid: boolean
   totalPercentage: number
@@ -113,7 +122,7 @@ export async function distributeToAllBuckets(
   for (const bucketAccount of bucketAccounts) {
     const percentage = Number(bucketAccount.getProperties().percentage)
     const amount = totalAmount * (percentage / 100)
-    const remoteId = `${context.transactionId}_${bucketAccount.getNormalizedName()}`
+    const remoteId = buildRemoteId(context.transactionId, bucketAccount.getNormalizedName())
 
     const transaction = new Transaction(bucketBook)
       .setDate(context.date)
@@ -228,7 +237,7 @@ export async function distributeToSuffixBuckets(
 
   for (const { account: bucketAccount, percentage } of recalculatedAccounts) {
     const amount = totalAmount * (percentage / 100)
-    const remoteId = `${context.transactionId}_${bucketAccount.getNormalizedName()}`
+    const remoteId = buildRemoteId(context.transactionId, bucketAccount.getNormalizedName())
 
     const transaction = new Transaction(bucketBook)
       .setDate(context.date)
@@ -322,7 +331,7 @@ export async function distributeToOverrideBuckets(
   const transactions: Transaction[] = []
 
   for (const bucketAccount of bucketAccounts) {
-    const remoteId = `${context.transactionId}_${bucketAccount.getNormalizedName()}`
+    const remoteId = buildRemoteId(context.transactionId, bucketAccount.getNormalizedName())
 
     const transaction = new Transaction(bucketBook)
       .setDate(context.date)
@@ -431,6 +440,100 @@ export async function trashBucketTransactions(
 
   await book.batchTrashTransactions(transactions, true)
   return transactions.length
+}
+
+/**
+ * Cleanup bucket transactions for a GL transaction before redistribution.
+ * Finds existing bucket transactions by GL ID and trashes them.
+ *
+ * @param book - The bucket book
+ * @param hashtag - The bucket hashtag to filter by
+ * @param date - The transaction date in YYYY-MM-DD format
+ * @param glTransactionId - The GL transaction ID
+ * @param expectedCount - Optional: stop early when this many transactions are found
+ * @returns The number of transactions trashed
+ */
+const VERIFY_MAX_RETRIES = 5
+const VERIFY_RETRY_DELAY_MS = 500
+
+/**
+ * Verify that all transactions have been trashed by checking their isTrashed status.
+ * Retries with delay if transactions are not yet trashed.
+ *
+ * @param book - The bucket book
+ * @param transactions - The transactions to verify
+ * @param maxRetries - Maximum number of retries (default: 5)
+ * @param retryDelayMs - Delay between retries in milliseconds (default: 500)
+ */
+export async function verifyTransactionsTrashed(
+  book: Book,
+  transactions: Transaction[],
+  maxRetries: number = VERIFY_MAX_RETRIES,
+  retryDelayMs: number = VERIFY_RETRY_DELAY_MS
+): Promise<void> {
+  if (transactions.length === 0) {
+    return
+  }
+
+  const transactionIds = transactions.map(tx => tx.getId())
+  let pendingIds = [...transactionIds]
+  let retryCount = 0
+
+  while (pendingIds.length > 0 && retryCount <= maxRetries) {
+    const stillPending: string[] = []
+
+    for (const id of pendingIds) {
+      const tx = await book.getTransaction(id)
+      if (tx && !tx.isTrashed()) {
+        stillPending.push(id)
+      }
+    }
+
+    if (stillPending.length === 0) {
+      console.log(`[VERIFY] All ${transactionIds.length} transactions confirmed trashed`)
+      return
+    }
+
+    pendingIds = stillPending
+    retryCount++
+
+    if (retryCount <= maxRetries) {
+      console.log(`[VERIFY] ${stillPending.length} transactions not yet trashed, retry ${retryCount}/${maxRetries}`)
+      await new Promise(resolve => setTimeout(resolve, retryDelayMs))
+    }
+  }
+
+  console.warn(`[VERIFY] ${pendingIds.length} transactions still not trashed after ${maxRetries} retries`)
+}
+
+export async function cleanupBucketTransactions(
+  book: Book,
+  hashtag: string,
+  date: string,
+  glTransactionId: string,
+  expectedCount?: number
+): Promise<number> {
+  const bucketTransactions = await findBucketTransactionsByGlId(
+    book,
+    hashtag,
+    date,
+    glTransactionId,
+    expectedCount
+  )
+
+  if (bucketTransactions.length === 0) {
+    return 0
+  }
+
+  // Trash the transactions
+  await book.batchTrashTransactions(bucketTransactions, true)
+
+  // Verify all transactions are actually trashed before returning
+  // This prevents race conditions where new transactions are posted
+  // before the old ones are fully processed
+  await verifyTransactionsTrashed(book, bucketTransactions)
+
+  return bucketTransactions.length
 }
 
 const BALANCE_TOLERANCE = 0.01
