@@ -76,15 +76,32 @@ export interface BkperBook {
   period?: string
 }
 
+// Transaction webhook event types
+export type TransactionEventType =
+  | 'TRANSACTION_POSTED'
+  | 'TRANSACTION_UPDATED'
+  | 'TRANSACTION_DELETED'
+  | 'TRANSACTION_RESTORED'
+  | 'TRANSACTION_UNTRASHED'
+
+// Account webhook event types
+export type AccountEventType =
+  | 'ACCOUNT_CREATED'
+  | 'ACCOUNT_UPDATED'
+  | 'ACCOUNT_DELETED'
+
+export type WebhookEventType = TransactionEventType | AccountEventType
+
 export interface BkperWebhookPayload {
   id: string
-  type: 'TRANSACTION_POSTED' | 'TRANSACTION_UPDATED' | 'TRANSACTION_DELETED' | 'TRANSACTION_RESTORED' | 'TRANSACTION_UNTRASHED'
+  type: WebhookEventType
   bookId: string
   resource: string
   book: BkperBook
   data: {
     object: {
-      transaction: BkperTransaction
+      transaction?: BkperTransaction
+      account?: BkperAccount
       accounts?: BkperAccount[]
     }
     previousAttributes?: Record<string, string>

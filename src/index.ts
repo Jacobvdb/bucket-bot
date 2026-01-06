@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { Bkper } from 'bkper-js'
 import type { BkperWebhookPayload } from './types'
 import { detectSavings } from './webhook'
-import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets, distributeToOverrideBuckets, cleanupBucketTransactions, validateBalances } from './bucket'
+import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets, distributeToOverrideBuckets, cleanupBucketTransactions, cleanupBucketTransactionsForAccount, validateBalances } from './bucket'
 
 type Bindings = {
   BKPER_API_KEY: string
@@ -16,6 +16,68 @@ app.post('/webhook', async (c) => {
   const payload = await c.req.json<BkperWebhookPayload>()
 
   console.log('Webhook received:', payload.type, payload.resource)
+
+  // Handle ACCOUNT_UPDATED - cleanup bucket transactions when savings:true is removed
+  if (payload.type === 'ACCOUNT_UPDATED') {
+    console.log('Handling ACCOUNT_UPDATED')
+    console.log('Account data:', JSON.stringify(payload.data, null, 2))
+
+    // For ACCOUNT_UPDATED, the object IS the account (not nested under .account)
+    const account = payload.data.object as unknown as import('./types').BkperAccount
+    if (!account || !account.id) {
+      console.log('No account in payload, skipping')
+      return c.json({ success: true })
+    }
+
+    // Check if savings:true was removed
+    const previousSavings = payload.data.previousAttributes?.savings
+    const currentSavings = account.properties?.savings
+
+    console.log(`Previous savings: ${previousSavings}, Current savings: ${currentSavings}`)
+
+    // Only proceed if savings was 'true' and now it's not
+    if (previousSavings !== 'true') {
+      console.log('Account was not a savings account, skipping')
+      return c.json({ success: true })
+    }
+
+    if (currentSavings === 'true') {
+      console.log('Account still has savings:true, skipping')
+      return c.json({ success: true })
+    }
+
+    console.log(`Savings removed from account: ${account.name} (${account.id})`)
+
+    // Get bucket_book_id from GL book properties
+    const bucketBookId = payload.book.properties?.bucket_book_id
+    if (!bucketBookId) {
+      console.log('No bucket_book_id configured on GL book, skipping')
+      return c.json({ success: true })
+    }
+
+    // Get OAuth token
+    const oauthToken = c.req.header('bkper-oauth-token')
+    if (!oauthToken) {
+      console.log('No OAuth token in bkper-oauth-token header')
+      return c.json({ success: false, error: 'No OAuth token' })
+    }
+
+    // Create Bkper instance
+    const bkper = new Bkper({
+      apiKeyProvider: () => c.env.BKPER_API_KEY,
+      oauthTokenProvider: () => oauthToken,
+    })
+
+    // Get bucket book
+    const bucketBook = await bkper.getBook(bucketBookId, true, true)
+    console.log('Bucket book name:', bucketBook.getName())
+
+    // Cleanup bucket transactions for this account
+    const trashedCount = await cleanupBucketTransactionsForAccount(bucketBook, account.id)
+
+    console.log(`Trashed ${trashedCount} bucket transactions for account ${account.name}`)
+    return c.json({ success: true, trashedCount, accountId: account.id, accountName: account.name })
+  }
 
   const result = detectSavings(payload)
 
@@ -181,6 +243,68 @@ app.post('/', async (c) => {
   const payload = await c.req.json<BkperWebhookPayload>()
 
   console.log('Webhook received:', payload.type, payload.resource)
+
+  // Handle ACCOUNT_UPDATED - cleanup bucket transactions when savings:true is removed
+  if (payload.type === 'ACCOUNT_UPDATED') {
+    console.log('Handling ACCOUNT_UPDATED')
+    console.log('Account data:', JSON.stringify(payload.data, null, 2))
+
+    // For ACCOUNT_UPDATED, the object IS the account (not nested under .account)
+    const account = payload.data.object as unknown as import('./types').BkperAccount
+    if (!account || !account.id) {
+      console.log('No account in payload, skipping')
+      return c.json({ success: true })
+    }
+
+    // Check if savings:true was removed
+    const previousSavings = payload.data.previousAttributes?.savings
+    const currentSavings = account.properties?.savings
+
+    console.log(`Previous savings: ${previousSavings}, Current savings: ${currentSavings}`)
+
+    // Only proceed if savings was 'true' and now it's not
+    if (previousSavings !== 'true') {
+      console.log('Account was not a savings account, skipping')
+      return c.json({ success: true })
+    }
+
+    if (currentSavings === 'true') {
+      console.log('Account still has savings:true, skipping')
+      return c.json({ success: true })
+    }
+
+    console.log(`Savings removed from account: ${account.name} (${account.id})`)
+
+    // Get bucket_book_id from GL book properties
+    const bucketBookId = payload.book.properties?.bucket_book_id
+    if (!bucketBookId) {
+      console.log('No bucket_book_id configured on GL book, skipping')
+      return c.json({ success: true })
+    }
+
+    // Get OAuth token
+    const oauthToken = c.req.header('bkper-oauth-token')
+    if (!oauthToken) {
+      console.log('No OAuth token in bkper-oauth-token header')
+      return c.json({ success: false, error: 'No OAuth token' })
+    }
+
+    // Create Bkper instance
+    const bkper = new Bkper({
+      apiKeyProvider: () => c.env.BKPER_API_KEY,
+      oauthTokenProvider: () => oauthToken,
+    })
+
+    // Get bucket book
+    const bucketBook = await bkper.getBook(bucketBookId, true, true)
+    console.log('Bucket book name:', bucketBook.getName())
+
+    // Cleanup bucket transactions for this account
+    const trashedCount = await cleanupBucketTransactionsForAccount(bucketBook, account.id)
+
+    console.log(`Trashed ${trashedCount} bucket transactions for account ${account.name}`)
+    return c.json({ success: true, trashedCount, accountId: account.id, accountName: account.name })
+  }
 
   const result = detectSavings(payload)
 

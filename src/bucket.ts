@@ -548,6 +548,78 @@ export async function cleanupBucketTransactions(
   return bucketTransactions.length
 }
 
+/**
+ * Find all bucket transactions linked to a specific GL account ID.
+ * Queries by gl_account_id property without date filtering to get ALL transactions.
+ *
+ * @param book - The bucket book to search
+ * @param glAccountId - The GL account ID to find bucket transactions for
+ * @returns Array of matching Transaction objects
+ */
+export async function findBucketTransactionsByGlAccountId(
+  book: Book,
+  glAccountId: string
+): Promise<Transaction[]> {
+  const allTransactions: Transaction[] = []
+  const query = `gl_account_id:"${glAccountId}"`
+
+  console.log(`[ACCOUNT_CLEANUP] Querying bucket transactions: ${query}`)
+
+  let transactionList = await book.listTransactions(query)
+
+  while (true) {
+    const transactions = transactionList.getItems()
+
+    if (transactions.length === 0) {
+      break
+    }
+
+    allTransactions.push(...transactions)
+    console.log(`[ACCOUNT_CLEANUP] Found ${transactions.length} transactions (total: ${allTransactions.length})`)
+
+    const cursor = transactionList.getCursor()
+    if (!cursor) {
+      break
+    }
+
+    transactionList = await book.listTransactions(query, undefined, cursor)
+  }
+
+  return allTransactions
+}
+
+/**
+ * Cleanup all bucket transactions for a GL account when savings:true is removed.
+ * Finds all transactions with gl_account_id property and trashes them.
+ *
+ * @param book - The bucket book
+ * @param glAccountId - The GL account ID whose transactions should be trashed
+ * @returns The number of transactions trashed
+ */
+export async function cleanupBucketTransactionsForAccount(
+  book: Book,
+  glAccountId: string
+): Promise<number> {
+  const bucketTransactions = await findBucketTransactionsByGlAccountId(book, glAccountId)
+
+  if (bucketTransactions.length === 0) {
+    console.log(`[ACCOUNT_CLEANUP] No bucket transactions found for gl_account_id: ${glAccountId}`)
+    return 0
+  }
+
+  console.log(`[ACCOUNT_CLEANUP] Trashing ${bucketTransactions.length} bucket transactions for gl_account_id: ${glAccountId}`)
+
+  // Trash the transactions (trashChecked=true handles checked transactions)
+  await book.batchTrashTransactions(bucketTransactions, true)
+
+  // Verify all transactions are actually trashed
+  await verifyTransactionsTrashed(book, bucketTransactions)
+
+  console.log(`[ACCOUNT_CLEANUP] Successfully trashed ${bucketTransactions.length} transactions`)
+
+  return bucketTransactions.length
+}
+
 const BALANCE_TOLERANCE = 0.01
 
 /**

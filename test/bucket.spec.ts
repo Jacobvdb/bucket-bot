@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets, distributeToOverrideBuckets, accountMatchesSuffix, findBucketTransactionsByGlId, trashBucketTransactions, validateBalances, cleanupBucketTransactions, verifyTransactionsTrashed } from '../src/bucket'
+import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets, distributeToOverrideBuckets, accountMatchesSuffix, findBucketTransactionsByGlId, trashBucketTransactions, validateBalances, cleanupBucketTransactions, verifyTransactionsTrashed, findBucketTransactionsByGlAccountId, cleanupBucketTransactionsForAccount } from '../src/bucket'
 import type { Book, Account, Group, TransactionList, BalancesContainer, BalancesReport } from 'bkper-js'
 import type { SavingsContext } from '../src/types'
 import { Transaction } from 'bkper-js'
@@ -905,5 +905,80 @@ describe('verifyTransactionsTrashed', () => {
     await verifyTransactionsTrashed(book, [])
 
     expect(book.getTransaction).not.toHaveBeenCalled()
+  })
+})
+
+describe('findBucketTransactionsByGlAccountId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('queries transactions by gl_account_id property', async () => {
+    const tx1 = createMockTransactionWithRemoteIds(['remote1'], 'tx1')
+    const tx2 = createMockTransactionWithRemoteIds(['remote2'], 'tx2')
+    const transactionList = createMockTransactionList([tx1, tx2])
+    const book = createMockBookForTransactions([transactionList])
+
+    const result = await findBucketTransactionsByGlAccountId(book, 'acc-123')
+
+    expect(book.listTransactions).toHaveBeenCalledWith('gl_account_id:"acc-123"')
+    expect(result).toHaveLength(2)
+  })
+
+  it('paginates through multiple pages', async () => {
+    const tx1 = createMockTransactionWithRemoteIds(['remote1'], 'tx1')
+    const tx2 = createMockTransactionWithRemoteIds(['remote2'], 'tx2')
+    const page1 = createMockTransactionList([tx1], 'cursor-1')
+    const page2 = createMockTransactionList([tx2])
+    const book = createMockBookForTransactions([page1, page2])
+
+    const result = await findBucketTransactionsByGlAccountId(book, 'acc-123')
+
+    expect(book.listTransactions).toHaveBeenCalledTimes(2)
+    expect(result).toHaveLength(2)
+  })
+
+  it('returns empty array when no transactions found', async () => {
+    const transactionList = createMockTransactionList([])
+    const book = createMockBookForTransactions([transactionList])
+
+    const result = await findBucketTransactionsByGlAccountId(book, 'acc-123')
+
+    expect(result).toHaveLength(0)
+  })
+})
+
+describe('cleanupBucketTransactionsForAccount', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('finds and trashes all bucket transactions for an account', async () => {
+    const tx1 = createMockTransactionWithRemoteIds(['remote1'], 'tx1', true)
+    const tx2 = createMockTransactionWithRemoteIds(['remote2'], 'tx2', true)
+    const transactionList = createMockTransactionList([tx1, tx2])
+
+    const getTransactionFn = async (id: string) => {
+      if (id === 'tx1') return createMockTransactionWithRemoteIds(['remote1'], 'tx1', true)
+      if (id === 'tx2') return createMockTransactionWithRemoteIds(['remote2'], 'tx2', true)
+      return undefined
+    }
+    const book = createMockBookForTransactions([transactionList], undefined, getTransactionFn)
+
+    const result = await cleanupBucketTransactionsForAccount(book, 'acc-123')
+
+    expect(book.listTransactions).toHaveBeenCalledWith('gl_account_id:"acc-123"')
+    expect(book.batchTrashTransactions).toHaveBeenCalledWith([tx1, tx2], true)
+    expect(result).toBe(2)
+  })
+
+  it('returns 0 when no transactions found', async () => {
+    const transactionList = createMockTransactionList([])
+    const book = createMockBookForTransactions([transactionList])
+
+    const result = await cleanupBucketTransactionsForAccount(book, 'acc-123')
+
+    expect(book.batchTrashTransactions).not.toHaveBeenCalled()
+    expect(result).toBe(0)
   })
 })
