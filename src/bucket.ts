@@ -106,10 +106,13 @@ export async function distributeToAllBuckets(
     return percentage !== undefined
   })
 
-  // Build description with hashtag
-  const description = context.bucketHashtag
-    ? `${context.description} ${context.bucketHashtag}`
-    : context.description
+  // Build description with hashtags (bucket hashtag + GL account hashtag)
+  const glHashtag = `#gl_${context.savingsAccountNormalizedName}`
+  let description = context.description
+  if (context.bucketHashtag) {
+    description = `${description} ${context.bucketHashtag}`
+  }
+  description = `${description} ${glHashtag}`
 
   // Get source/destination accounts based on direction
   const incomeAccount = await bucketBook.getAccount(context.bucketIncomeAcc)
@@ -129,6 +132,7 @@ export async function distributeToAllBuckets(
       .setAmount(amount)
       .setDescription(description)
       .addRemoteId(remoteId)
+      .setProperty('gl_account_id', context.savingsAccountId)
 
     if (context.direction === 'deposit') {
       // Savings (INCOMING) → Bucket (ASSET)
@@ -222,10 +226,13 @@ export async function distributeToSuffixBuckets(
     recalculatedAccounts[0].percentage += remainder
   }
 
-  // Build description with hashtag
-  const description = context.bucketHashtag
-    ? `${context.description} ${context.bucketHashtag}`
-    : context.description
+  // Build description with hashtags (bucket hashtag + GL account hashtag)
+  const glHashtag = `#gl_${context.savingsAccountNormalizedName}`
+  let description = context.description
+  if (context.bucketHashtag) {
+    description = `${description} ${context.bucketHashtag}`
+  }
+  description = `${description} ${glHashtag}`
 
   // Get source/destination accounts based on direction
   const incomeAccount = await bucketBook.getAccount(context.bucketIncomeAcc)
@@ -244,6 +251,7 @@ export async function distributeToSuffixBuckets(
       .setAmount(amount)
       .setDescription(description)
       .addRemoteId(remoteId)
+      .setProperty('gl_account_id', context.savingsAccountId)
 
     if (context.direction === 'deposit') {
       // Savings (INCOMING) → Bucket (ASSET)
@@ -317,10 +325,13 @@ export async function distributeToOverrideBuckets(
   const percentage = 100 / bucketAccounts.length
   const amount = totalAmount * (percentage / 100)
 
-  // Build description with hashtag
-  const description = context.bucketHashtag
-    ? `${context.description} ${context.bucketHashtag}`
-    : context.description
+  // Build description with hashtags (bucket hashtag + GL account hashtag)
+  const glHashtag = `#gl_${context.savingsAccountNormalizedName}`
+  let description = context.description
+  if (context.bucketHashtag) {
+    description = `${description} ${context.bucketHashtag}`
+  }
+  description = `${description} ${glHashtag}`
 
   // Get source/destination accounts based on direction
   const incomeAccount = await bucketBook.getAccount(context.bucketIncomeAcc)
@@ -338,6 +349,7 @@ export async function distributeToOverrideBuckets(
       .setAmount(amount)
       .setDescription(description)
       .addRemoteId(remoteId)
+      .setProperty('gl_account_id', context.savingsAccountId)
 
     if (context.direction === 'deposit') {
       // Savings (INCOMING) → Bucket (ASSET)

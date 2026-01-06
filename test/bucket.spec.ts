@@ -69,6 +69,8 @@ function createMockContext(overrides: Partial<SavingsContext> = {}): SavingsCont
     direction: 'deposit',
     suffix: undefined,
     savingsAccountName: 'RDB',
+    savingsAccountId: 'savings-acc-id',
+    savingsAccountNormalizedName: 'rdb',
     savingsGroupName: undefined,
     ...overrides,
   }
@@ -83,6 +85,7 @@ function createMockTransaction() {
   mockTx.setAmount = vi.fn().mockImplementation((...args: unknown[]) => { calls.push({ method: 'setAmount', args }); return mockTx })
   mockTx.setDescription = vi.fn().mockImplementation((...args: unknown[]) => { calls.push({ method: 'setDescription', args }); return mockTx })
   mockTx.addRemoteId = vi.fn().mockImplementation((...args: unknown[]) => { calls.push({ method: 'addRemoteId', args }); return mockTx })
+  mockTx.setProperty = vi.fn().mockImplementation((...args: unknown[]) => { calls.push({ method: 'setProperty', args }); return mockTx })
   mockTx.setCreditAccount = vi.fn().mockImplementation((...args: unknown[]) => { calls.push({ method: 'setCreditAccount', args }); return mockTx })
   mockTx.setDebitAccount = vi.fn().mockImplementation((...args: unknown[]) => { calls.push({ method: 'setDebitAccount', args }); return mockTx })
   mockTx.post = vi.fn().mockResolvedValue(mockTx)
@@ -243,6 +246,48 @@ describe('distributeToAllBuckets', () => {
     expect(mockTransactions).toHaveLength(2)
     expect(mockTransactions[0].addRemoteId).toHaveBeenCalledWith(expect.stringMatching(/^TX123_new_car_\d+$/))
     expect(mockTransactions[1].addRemoteId).toHaveBeenCalledWith(expect.stringMatching(/^TX123_emergency_fund_\d+$/))
+  })
+
+  it('sets gl_account_id property with savings account ID', async () => {
+    const mockTx = createMockTransaction()
+    vi.mocked(Transaction).mockImplementation(() => mockTx as unknown as Transaction)
+
+    const savingsAccount = createMockAccount('INCOMING', 'Savings')
+    const bucketAccount = createMockAccount('ASSET', 'New Car', '100', [], 'new_car')
+    const book = createMockBook(
+      [savingsAccount, bucketAccount],
+      { 'Savings': savingsAccount, 'Withdrawal': createMockAccount('OUTGOING', 'Withdrawal') }
+    )
+    const context = createMockContext({
+      savingsAccountId: 'acc-123',
+      savingsAccountNormalizedName: 'rdb_long',
+    })
+
+    await distributeToAllBuckets(book, context)
+
+    expect(mockTx.setProperty).toHaveBeenCalledWith('gl_account_id', 'acc-123')
+  })
+
+  it('adds #gl_ hashtag with normalized account name to description', async () => {
+    const mockTx = createMockTransaction()
+    vi.mocked(Transaction).mockImplementation(() => mockTx as unknown as Transaction)
+
+    const savingsAccount = createMockAccount('INCOMING', 'Savings')
+    const bucketAccount = createMockAccount('ASSET', 'New Car', '100', [], 'new_car')
+    const book = createMockBook(
+      [savingsAccount, bucketAccount],
+      { 'Savings': savingsAccount, 'Withdrawal': createMockAccount('OUTGOING', 'Withdrawal') }
+    )
+    const context = createMockContext({
+      description: 'Test deposit',
+      bucketHashtag: '#savings',
+      savingsAccountId: 'acc-123',
+      savingsAccountNormalizedName: 'rdb_long',
+    })
+
+    await distributeToAllBuckets(book, context)
+
+    expect(mockTx.setDescription).toHaveBeenCalledWith('Test deposit #savings #gl_rdb_long')
   })
 })
 

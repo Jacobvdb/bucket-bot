@@ -122,6 +122,8 @@ export interface SavingsContext {
   direction: Direction
   suffix: string | undefined // only set if no bucketOverride
   savingsAccountName: string
+  savingsAccountId: string
+  savingsAccountNormalizedName: string
   savingsGroupName: string | undefined
 }
 

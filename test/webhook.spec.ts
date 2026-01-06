@@ -277,6 +277,36 @@ describe('detectSavings', () => {
         expect(result.context.toAccount).toBe('RDB LONG')
       }
     })
+
+    it('extracts savingsAccountId from the savings account', () => {
+      const payload = createTestPayload({
+        debitAccountProps: { savings: 'true' },
+        debitAccountName: 'RDB LONG',
+      })
+
+      const result = detectSavings(payload)
+
+      expect(result.isSavings).toBe(true)
+      if (result.isSavings) {
+        expect(result.context.savingsAccountId).toBe('debit-acc-id')
+        expect(result.context.savingsAccountNormalizedName).toBe('savings_account')
+      }
+    })
+
+    it('extracts savingsAccountId from credit account when withdrawal', () => {
+      const payload = createTestPayload({
+        creditAccountProps: { savings: 'true' },
+        creditAccountName: 'RDB LONG',
+      })
+
+      const result = detectSavings(payload)
+
+      expect(result.isSavings).toBe(true)
+      if (result.isSavings) {
+        expect(result.context.savingsAccountId).toBe('credit-acc-id')
+        expect(result.context.savingsAccountNormalizedName).toBe('bank_account')
+      }
+    })
   })
 
   describe('suffix from account groups', () => {

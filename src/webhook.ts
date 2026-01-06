@@ -159,6 +159,8 @@ export function detectSavings(payload: BkperWebhookPayload): SavingsDetectionRes
     direction: direction!,
     suffix,
     savingsAccountName: savingsAccount.name,
+    savingsAccountId: savingsAccount.id,
+    savingsAccountNormalizedName: savingsAccount.normalizedName,
     savingsGroupName: savingsGroup?.name,
   }
 
