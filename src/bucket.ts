@@ -5,11 +5,17 @@ import { extractSuffix } from './webhook'
 
 /**
  * Build a unique remote ID with timestamp to avoid idempotency conflicts.
- * Format: {transactionId}_{normalizedAccountName}_{timestamp}
+ * Format: {identifier}_{normalizedAccountName}_{timestamp}
+ * For initialization: init_{accountId}_{normalizedAccountName}_{timestamp}
  */
-function buildRemoteId(transactionId: string, normalizedAccountName: string): string {
+function buildRemoteId(
+  identifier: string,
+  normalizedAccountName: string,
+  isInitialization?: boolean
+): string {
   const timestamp = Date.now()
-  return `${transactionId}_${normalizedAccountName}_${timestamp}`
+  const prefix = isInitialization ? 'init_' : ''
+  return `${prefix}${identifier}_${normalizedAccountName}_${timestamp}`
 }
 
 export interface PercentageValidationResult {
@@ -122,10 +128,13 @@ export async function distributeToAllBuckets(
   let totalDistributed = 0
   const transactions: Transaction[] = []
 
+  // For initialization, use savingsAccountId as identifier; for normal transactions use transactionId
+  const remoteIdIdentifier = context.isInitialization ? context.savingsAccountId : context.transactionId
+
   for (const bucketAccount of bucketAccounts) {
     const percentage = Number(bucketAccount.getProperties().percentage)
     const amount = totalAmount * (percentage / 100)
-    const remoteId = buildRemoteId(context.transactionId, bucketAccount.getNormalizedName())
+    const remoteId = buildRemoteId(remoteIdIdentifier, bucketAccount.getNormalizedName(), context.isInitialization)
 
     const transaction = new Transaction(bucketBook)
       .setDate(context.date)
@@ -242,9 +251,12 @@ export async function distributeToSuffixBuckets(
   let totalDistributed = 0
   const transactions: Transaction[] = []
 
+  // For initialization, use savingsAccountId as identifier; for normal transactions use transactionId
+  const remoteIdIdentifier = context.isInitialization ? context.savingsAccountId : context.transactionId
+
   for (const { account: bucketAccount, percentage } of recalculatedAccounts) {
     const amount = totalAmount * (percentage / 100)
-    const remoteId = buildRemoteId(context.transactionId, bucketAccount.getNormalizedName())
+    const remoteId = buildRemoteId(remoteIdIdentifier, bucketAccount.getNormalizedName(), context.isInitialization)
 
     const transaction = new Transaction(bucketBook)
       .setDate(context.date)

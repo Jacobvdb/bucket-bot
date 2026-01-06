@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { extractSuffix, detectSavings } from '../src/webhook'
+import { extractSuffix, extractSuffixFromAccount, detectSavings } from '../src/webhook'
 import type { BkperWebhookPayload, BkperAccount, BkperGroup } from '../src/types'
 
 describe('extractSuffix', () => {
@@ -29,6 +29,129 @@ describe('extractSuffix', () => {
 
   it('extracts suffix with multiple spaces', () => {
     expect(extractSuffix('Some  Account  LONG')).toBe('LONG')
+  })
+})
+
+describe('extractSuffixFromAccount', () => {
+  it('extracts suffix from account name', () => {
+    const account: BkperAccount = {
+      id: 'acc-1',
+      name: 'Savings LONG',
+      normalizedName: 'savings_long',
+      type: 'ASSET',
+      credit: false,
+      permanent: true,
+    }
+
+    expect(extractSuffixFromAccount(account)).toBe('LONG')
+  })
+
+  it('extracts suffix from account groups when account name has no suffix', () => {
+    const group: BkperGroup = {
+      id: 'group-1',
+      name: 'Provisioning LONG',
+      normalizedName: 'provisioning_long',
+      credit: false,
+      permanent: true,
+    }
+
+    const account: BkperAccount = {
+      id: 'acc-1',
+      name: 'RDB',
+      normalizedName: 'rdb',
+      type: 'ASSET',
+      credit: false,
+      permanent: true,
+      groups: [group],
+    }
+
+    expect(extractSuffixFromAccount(account)).toBe('LONG')
+  })
+
+  it('prefers account name suffix over group suffix', () => {
+    const group: BkperGroup = {
+      id: 'group-1',
+      name: 'Provisioning SHORT',
+      normalizedName: 'provisioning_short',
+      credit: false,
+      permanent: true,
+    }
+
+    const account: BkperAccount = {
+      id: 'acc-1',
+      name: 'Savings LONG',
+      normalizedName: 'savings_long',
+      type: 'ASSET',
+      credit: false,
+      permanent: true,
+      groups: [group],
+    }
+
+    expect(extractSuffixFromAccount(account)).toBe('LONG')
+  })
+
+  it('returns undefined when account and groups have no suffix', () => {
+    const group: BkperGroup = {
+      id: 'group-1',
+      name: 'Provisioning',
+      normalizedName: 'provisioning',
+      credit: false,
+      permanent: true,
+    }
+
+    const account: BkperAccount = {
+      id: 'acc-1',
+      name: 'RDB',
+      normalizedName: 'rdb',
+      type: 'ASSET',
+      credit: false,
+      permanent: true,
+      groups: [group],
+    }
+
+    expect(extractSuffixFromAccount(account)).toBeUndefined()
+  })
+
+  it('returns undefined when account has no groups and no suffix in name', () => {
+    const account: BkperAccount = {
+      id: 'acc-1',
+      name: 'RDB',
+      normalizedName: 'rdb',
+      type: 'ASSET',
+      credit: false,
+      permanent: true,
+    }
+
+    expect(extractSuffixFromAccount(account)).toBeUndefined()
+  })
+
+  it('finds suffix in second group when first has none', () => {
+    const group1: BkperGroup = {
+      id: 'group-1',
+      name: 'Assets',
+      normalizedName: 'assets',
+      credit: false,
+      permanent: true,
+    }
+    const group2: BkperGroup = {
+      id: 'group-2',
+      name: 'Savings LONG',
+      normalizedName: 'savings_long',
+      credit: false,
+      permanent: true,
+    }
+
+    const account: BkperAccount = {
+      id: 'acc-1',
+      name: 'RDB',
+      normalizedName: 'rdb',
+      type: 'ASSET',
+      credit: false,
+      permanent: true,
+      groups: [group1, group2],
+    }
+
+    expect(extractSuffixFromAccount(account)).toBe('LONG')
   })
 })
 

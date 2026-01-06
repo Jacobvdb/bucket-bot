@@ -142,6 +142,9 @@ export interface SavingsContext {
   savingsAccountId: string
   savingsAccountNormalizedName: string
   savingsGroupName: string | undefined
+
+  // Initialization mode (when savings:true is added to existing account with balance)
+  isInitialization?: boolean
 }
 
 export type SavingsDetectionResult = {

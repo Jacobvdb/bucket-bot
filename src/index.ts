@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { Bkper } from 'bkper-js'
-import type { BkperWebhookPayload } from './types'
-import { detectSavings } from './webhook'
+import type { BkperWebhookPayload, BkperAccount, SavingsContext } from './types'
+import { detectSavings, extractSuffixFromAccount } from './webhook'
 import { validatePercentages, distributeToAllBuckets, distributeToSuffixBuckets, distributeToOverrideBuckets, cleanupBucketTransactions, cleanupBucketTransactionsForAccount, validateBalances } from './bucket'
 
 type Bindings = {
@@ -13,40 +13,29 @@ const app = new Hono<{ Bindings: Bindings }>()
 app.get('/health', (c) => c.text('OK'))
 
 app.post('/webhook', async (c) => {
-  const payload = await c.req.json<BkperWebhookPayload>()
+  const rawBody = await c.req.text()
+  console.log('RAW PAYLOAD:', rawBody)
+
+  const payload = JSON.parse(rawBody) as BkperWebhookPayload
 
   console.log('Webhook received:', payload.type, payload.resource)
 
-  // Handle ACCOUNT_UPDATED - cleanup bucket transactions when savings:true is removed
+  // Handle ACCOUNT_UPDATED - initialization when savings:true is added, cleanup when removed
   if (payload.type === 'ACCOUNT_UPDATED') {
     console.log('Handling ACCOUNT_UPDATED')
     console.log('Account data:', JSON.stringify(payload.data, null, 2))
 
     // For ACCOUNT_UPDATED, the object IS the account (not nested under .account)
-    const account = payload.data.object as unknown as import('./types').BkperAccount
+    const account = payload.data.object as unknown as BkperAccount
     if (!account || !account.id) {
       console.log('No account in payload, skipping')
       return c.json({ success: true })
     }
 
-    // Check if savings:true was removed
     const previousSavings = payload.data.previousAttributes?.savings
     const currentSavings = account.properties?.savings
 
     console.log(`Previous savings: ${previousSavings}, Current savings: ${currentSavings}`)
-
-    // Only proceed if savings was 'true' and now it's not
-    if (previousSavings !== 'true') {
-      console.log('Account was not a savings account, skipping')
-      return c.json({ success: true })
-    }
-
-    if (currentSavings === 'true') {
-      console.log('Account still has savings:true, skipping')
-      return c.json({ success: true })
-    }
-
-    console.log(`Savings removed from account: ${account.name} (${account.id})`)
 
     // Get bucket_book_id from GL book properties
     const bucketBookId = payload.book.properties?.bucket_book_id
@@ -55,28 +44,165 @@ app.post('/webhook', async (c) => {
       return c.json({ success: true })
     }
 
-    // Get OAuth token
-    const oauthToken = c.req.header('bkper-oauth-token')
-    if (!oauthToken) {
-      console.log('No OAuth token in bkper-oauth-token header')
-      return c.json({ success: false, error: 'No OAuth token' })
+    // Case 1: savings:true was ADDED - initialize bucket transactions
+    if (currentSavings === 'true' && previousSavings !== 'true') {
+      console.log(`Savings added to account: ${account.name} (${account.id})`)
+
+      // Only initialize ASSET accounts
+      if (account.type !== 'ASSET') {
+        console.log(`Account type is ${account.type}, not ASSET - skipping initialization`)
+        return c.json({ success: true })
+      }
+
+      // Get OAuth token
+      const oauthToken = c.req.header('bkper-oauth-token')
+      if (!oauthToken) {
+        console.log('No OAuth token in bkper-oauth-token header')
+        return c.json({ success: false, error: 'No OAuth token' })
+      }
+
+      // Create Bkper instance
+      const bkper = new Bkper({
+        apiKeyProvider: () => c.env.BKPER_API_KEY,
+        oauthTokenProvider: () => oauthToken,
+      })
+
+      // Get GL book and fetch actual account balance (webhook payload balance is unreliable)
+      const glBook = await bkper.getBook(payload.bookId, true, true)
+      console.log('GL book name:', glBook.getName())
+
+      const balancesReport = await glBook.getBalancesReport(`account:"${account.name}"`)
+      const container = balancesReport.getBalancesContainers()[0]
+      const balance = container ? container.getCumulativeBalance().toNumber() : 0
+
+      console.log(`Fetched actual balance from GL book: ${balance}`)
+
+      if (balance <= 0) {
+        console.log(`Account balance is ${balance}, skipping initialization (must be > 0)`)
+        return c.json({ success: true })
+      }
+
+      console.log(`Initializing bucket transactions for balance: ${balance}`)
+
+      // Get bucket book with accounts and groups
+      const bucketBook = await bkper.getBook(bucketBookId, true, true)
+      console.log('Bucket book name:', bucketBook.getName())
+
+      // Extract suffix from account
+      const suffix = extractSuffixFromAccount(account)
+      console.log(`Suffix extracted: ${suffix || 'none'}`)
+
+      // Get today's date in YYYY-MM-DD format
+      const today = new Date().toISOString().split('T')[0]
+
+      // Build initialization context
+      const initContext: SavingsContext = {
+        bucketBookId,
+        bucketHashtag: payload.book.collection?.books?.find(b => b.id === bucketBookId)?.properties?.bucket_hashtag,
+        bucketIncomeAcc: payload.book.collection?.books?.find(b => b.id === bucketBookId)?.properties?.bucket_income_acc ?? 'Savings',
+        bucketWithdrawalAcc: payload.book.collection?.books?.find(b => b.id === bucketBookId)?.properties?.bucket_withdrawal_acc ?? 'Withdrawal',
+        amount: String(balance),
+        transactionId: account.id, // Use account ID as identifier for initialization
+        description: 'Initial balance',
+        date: today,
+        fromAccount: account.name,
+        toAccount: account.name,
+        bucketOverride: undefined,
+        direction: 'deposit', // Positive balance = accumulated deposits
+        suffix,
+        savingsAccountName: account.name,
+        savingsAccountId: account.id,
+        savingsAccountNormalizedName: account.normalizedName,
+        savingsGroupName: undefined,
+        isInitialization: true,
+      }
+
+      // Validate percentages sum to 100%
+      const validation = await validatePercentages(bucketBook)
+      if (!validation.isValid) {
+        console.log(`Percentage validation failed: ${validation.totalPercentage}% (${validation.accountCount} accounts)`)
+        return c.json({
+          success: false,
+          error: `Cannot initialize: bucket percentages sum to ${validation.totalPercentage}%, not 100%`,
+        })
+      }
+
+      console.log(`Percentage validation passed: ${validation.accountCount} accounts totaling 100%`)
+
+      // Distribute based on suffix or to all buckets
+      let distribution
+      if (suffix) {
+        console.log(`Using suffix-based distribution: ${suffix}`)
+        distribution = await distributeToSuffixBuckets(bucketBook, initContext)
+      } else {
+        console.log('Using percentage-based distribution to all buckets')
+        distribution = await distributeToAllBuckets(bucketBook, initContext)
+      }
+
+      if (!distribution.success) {
+        console.log(`Initialization distribution failed: ${distribution.error}`)
+        return c.json({ success: false, error: distribution.error })
+      }
+
+      console.log(`Initialized ${distribution.totalDistributed} to ${distribution.transactionCount} buckets`)
+
+      // Validate balances after distribution (glBook already fetched earlier)
+      const balanceValidation = await validateBalances(glBook, bucketBook)
+      console.log(`Balance validation: GL=${balanceValidation.glTotal}, Bucket=${balanceValidation.bucketTotal}, Diff=${balanceValidation.difference}, Balanced=${balanceValidation.isBalanced}`)
+
+      // Check transactions if balances match
+      let checkedCount = 0
+      if (balanceValidation.isBalanced && distribution.transactions && distribution.transactions.length > 0) {
+        await bucketBook.batchCheckTransactions(distribution.transactions)
+        checkedCount = distribution.transactions.length
+        console.log(`Checked ${checkedCount} transactions`)
+      } else if (!balanceValidation.isBalanced) {
+        console.log('Balance mismatch - transactions NOT checked')
+      }
+
+      return c.json({
+        success: true,
+        action: 'initialization',
+        distributed: distribution.totalDistributed,
+        transactions: distribution.transactionCount,
+        balanceValidation,
+        checkedCount,
+        accountId: account.id,
+        accountName: account.name,
+      })
     }
 
-    // Create Bkper instance
-    const bkper = new Bkper({
-      apiKeyProvider: () => c.env.BKPER_API_KEY,
-      oauthTokenProvider: () => oauthToken,
-    })
+    // Case 2: savings:true was REMOVED - cleanup bucket transactions
+    if (previousSavings === 'true' && currentSavings !== 'true') {
+      console.log(`Savings removed from account: ${account.name} (${account.id})`)
 
-    // Get bucket book
-    const bucketBook = await bkper.getBook(bucketBookId, true, true)
-    console.log('Bucket book name:', bucketBook.getName())
+      // Get OAuth token
+      const oauthToken = c.req.header('bkper-oauth-token')
+      if (!oauthToken) {
+        console.log('No OAuth token in bkper-oauth-token header')
+        return c.json({ success: false, error: 'No OAuth token' })
+      }
 
-    // Cleanup bucket transactions for this account
-    const trashedCount = await cleanupBucketTransactionsForAccount(bucketBook, account.id)
+      // Create Bkper instance
+      const bkper = new Bkper({
+        apiKeyProvider: () => c.env.BKPER_API_KEY,
+        oauthTokenProvider: () => oauthToken,
+      })
 
-    console.log(`Trashed ${trashedCount} bucket transactions for account ${account.name}`)
-    return c.json({ success: true, trashedCount, accountId: account.id, accountName: account.name })
+      // Get bucket book
+      const bucketBook = await bkper.getBook(bucketBookId, true, true)
+      console.log('Bucket book name:', bucketBook.getName())
+
+      // Cleanup bucket transactions for this account
+      const trashedCount = await cleanupBucketTransactionsForAccount(bucketBook, account.id)
+
+      console.log(`Trashed ${trashedCount} bucket transactions for account ${account.name}`)
+      return c.json({ success: true, action: 'cleanup', trashedCount, accountId: account.id, accountName: account.name })
+    }
+
+    // Neither case applies
+    console.log('No savings property change detected, skipping')
+    return c.json({ success: true })
   }
 
   const result = detectSavings(payload)
@@ -244,36 +370,22 @@ app.post('/', async (c) => {
 
   console.log('Webhook received:', payload.type, payload.resource)
 
-  // Handle ACCOUNT_UPDATED - cleanup bucket transactions when savings:true is removed
+  // Handle ACCOUNT_UPDATED - initialization when savings:true is added, cleanup when removed
   if (payload.type === 'ACCOUNT_UPDATED') {
     console.log('Handling ACCOUNT_UPDATED')
     console.log('Account data:', JSON.stringify(payload.data, null, 2))
 
     // For ACCOUNT_UPDATED, the object IS the account (not nested under .account)
-    const account = payload.data.object as unknown as import('./types').BkperAccount
+    const account = payload.data.object as unknown as BkperAccount
     if (!account || !account.id) {
       console.log('No account in payload, skipping')
       return c.json({ success: true })
     }
 
-    // Check if savings:true was removed
     const previousSavings = payload.data.previousAttributes?.savings
     const currentSavings = account.properties?.savings
 
     console.log(`Previous savings: ${previousSavings}, Current savings: ${currentSavings}`)
-
-    // Only proceed if savings was 'true' and now it's not
-    if (previousSavings !== 'true') {
-      console.log('Account was not a savings account, skipping')
-      return c.json({ success: true })
-    }
-
-    if (currentSavings === 'true') {
-      console.log('Account still has savings:true, skipping')
-      return c.json({ success: true })
-    }
-
-    console.log(`Savings removed from account: ${account.name} (${account.id})`)
 
     // Get bucket_book_id from GL book properties
     const bucketBookId = payload.book.properties?.bucket_book_id
@@ -282,28 +394,165 @@ app.post('/', async (c) => {
       return c.json({ success: true })
     }
 
-    // Get OAuth token
-    const oauthToken = c.req.header('bkper-oauth-token')
-    if (!oauthToken) {
-      console.log('No OAuth token in bkper-oauth-token header')
-      return c.json({ success: false, error: 'No OAuth token' })
+    // Case 1: savings:true was ADDED - initialize bucket transactions
+    if (currentSavings === 'true' && previousSavings !== 'true') {
+      console.log(`Savings added to account: ${account.name} (${account.id})`)
+
+      // Only initialize ASSET accounts
+      if (account.type !== 'ASSET') {
+        console.log(`Account type is ${account.type}, not ASSET - skipping initialization`)
+        return c.json({ success: true })
+      }
+
+      // Get OAuth token
+      const oauthToken = c.req.header('bkper-oauth-token')
+      if (!oauthToken) {
+        console.log('No OAuth token in bkper-oauth-token header')
+        return c.json({ success: false, error: 'No OAuth token' })
+      }
+
+      // Create Bkper instance
+      const bkper = new Bkper({
+        apiKeyProvider: () => c.env.BKPER_API_KEY,
+        oauthTokenProvider: () => oauthToken,
+      })
+
+      // Get GL book and fetch actual account balance (webhook payload balance is unreliable)
+      const glBook = await bkper.getBook(payload.bookId, true, true)
+      console.log('GL book name:', glBook.getName())
+
+      const balancesReport = await glBook.getBalancesReport(`account:"${account.name}"`)
+      const container = balancesReport.getBalancesContainers()[0]
+      const balance = container ? container.getCumulativeBalance().toNumber() : 0
+
+      console.log(`Fetched actual balance from GL book: ${balance}`)
+
+      if (balance <= 0) {
+        console.log(`Account balance is ${balance}, skipping initialization (must be > 0)`)
+        return c.json({ success: true })
+      }
+
+      console.log(`Initializing bucket transactions for balance: ${balance}`)
+
+      // Get bucket book with accounts and groups
+      const bucketBook = await bkper.getBook(bucketBookId, true, true)
+      console.log('Bucket book name:', bucketBook.getName())
+
+      // Extract suffix from account
+      const suffix = extractSuffixFromAccount(account)
+      console.log(`Suffix extracted: ${suffix || 'none'}`)
+
+      // Get today's date in YYYY-MM-DD format
+      const today = new Date().toISOString().split('T')[0]
+
+      // Build initialization context
+      const initContext: SavingsContext = {
+        bucketBookId,
+        bucketHashtag: payload.book.collection?.books?.find(b => b.id === bucketBookId)?.properties?.bucket_hashtag,
+        bucketIncomeAcc: payload.book.collection?.books?.find(b => b.id === bucketBookId)?.properties?.bucket_income_acc ?? 'Savings',
+        bucketWithdrawalAcc: payload.book.collection?.books?.find(b => b.id === bucketBookId)?.properties?.bucket_withdrawal_acc ?? 'Withdrawal',
+        amount: String(balance),
+        transactionId: account.id, // Use account ID as identifier for initialization
+        description: 'Initial balance',
+        date: today,
+        fromAccount: account.name,
+        toAccount: account.name,
+        bucketOverride: undefined,
+        direction: 'deposit', // Positive balance = accumulated deposits
+        suffix,
+        savingsAccountName: account.name,
+        savingsAccountId: account.id,
+        savingsAccountNormalizedName: account.normalizedName,
+        savingsGroupName: undefined,
+        isInitialization: true,
+      }
+
+      // Validate percentages sum to 100%
+      const validation = await validatePercentages(bucketBook)
+      if (!validation.isValid) {
+        console.log(`Percentage validation failed: ${validation.totalPercentage}% (${validation.accountCount} accounts)`)
+        return c.json({
+          success: false,
+          error: `Cannot initialize: bucket percentages sum to ${validation.totalPercentage}%, not 100%`,
+        })
+      }
+
+      console.log(`Percentage validation passed: ${validation.accountCount} accounts totaling 100%`)
+
+      // Distribute based on suffix or to all buckets
+      let distribution
+      if (suffix) {
+        console.log(`Using suffix-based distribution: ${suffix}`)
+        distribution = await distributeToSuffixBuckets(bucketBook, initContext)
+      } else {
+        console.log('Using percentage-based distribution to all buckets')
+        distribution = await distributeToAllBuckets(bucketBook, initContext)
+      }
+
+      if (!distribution.success) {
+        console.log(`Initialization distribution failed: ${distribution.error}`)
+        return c.json({ success: false, error: distribution.error })
+      }
+
+      console.log(`Initialized ${distribution.totalDistributed} to ${distribution.transactionCount} buckets`)
+
+      // Validate balances after distribution (glBook already fetched earlier)
+      const balanceValidation = await validateBalances(glBook, bucketBook)
+      console.log(`Balance validation: GL=${balanceValidation.glTotal}, Bucket=${balanceValidation.bucketTotal}, Diff=${balanceValidation.difference}, Balanced=${balanceValidation.isBalanced}`)
+
+      // Check transactions if balances match
+      let checkedCount = 0
+      if (balanceValidation.isBalanced && distribution.transactions && distribution.transactions.length > 0) {
+        await bucketBook.batchCheckTransactions(distribution.transactions)
+        checkedCount = distribution.transactions.length
+        console.log(`Checked ${checkedCount} transactions`)
+      } else if (!balanceValidation.isBalanced) {
+        console.log('Balance mismatch - transactions NOT checked')
+      }
+
+      return c.json({
+        success: true,
+        action: 'initialization',
+        distributed: distribution.totalDistributed,
+        transactions: distribution.transactionCount,
+        balanceValidation,
+        checkedCount,
+        accountId: account.id,
+        accountName: account.name,
+      })
     }
 
-    // Create Bkper instance
-    const bkper = new Bkper({
-      apiKeyProvider: () => c.env.BKPER_API_KEY,
-      oauthTokenProvider: () => oauthToken,
-    })
+    // Case 2: savings:true was REMOVED - cleanup bucket transactions
+    if (previousSavings === 'true' && currentSavings !== 'true') {
+      console.log(`Savings removed from account: ${account.name} (${account.id})`)
 
-    // Get bucket book
-    const bucketBook = await bkper.getBook(bucketBookId, true, true)
-    console.log('Bucket book name:', bucketBook.getName())
+      // Get OAuth token
+      const oauthToken = c.req.header('bkper-oauth-token')
+      if (!oauthToken) {
+        console.log('No OAuth token in bkper-oauth-token header')
+        return c.json({ success: false, error: 'No OAuth token' })
+      }
 
-    // Cleanup bucket transactions for this account
-    const trashedCount = await cleanupBucketTransactionsForAccount(bucketBook, account.id)
+      // Create Bkper instance
+      const bkper = new Bkper({
+        apiKeyProvider: () => c.env.BKPER_API_KEY,
+        oauthTokenProvider: () => oauthToken,
+      })
 
-    console.log(`Trashed ${trashedCount} bucket transactions for account ${account.name}`)
-    return c.json({ success: true, trashedCount, accountId: account.id, accountName: account.name })
+      // Get bucket book
+      const bucketBook = await bkper.getBook(bucketBookId, true, true)
+      console.log('Bucket book name:', bucketBook.getName())
+
+      // Cleanup bucket transactions for this account
+      const trashedCount = await cleanupBucketTransactionsForAccount(bucketBook, account.id)
+
+      console.log(`Trashed ${trashedCount} bucket transactions for account ${account.name}`)
+      return c.json({ success: true, action: 'cleanup', trashedCount, accountId: account.id, accountName: account.name })
+    }
+
+    // Neither case applies
+    console.log('No savings property change detected, skipping')
+    return c.json({ success: true })
   }
 
   const result = detectSavings(payload)

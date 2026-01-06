@@ -53,6 +53,28 @@ export function extractSuffix(name: string): string | undefined {
 }
 
 /**
+ * Extract suffix from an account by checking:
+ * 1. Account name
+ * 2. Account's groups
+ *
+ * Used for account initialization when savings:true is added.
+ */
+export function extractSuffixFromAccount(account: BkperAccount): string | undefined {
+  // Try account name first
+  let suffix = extractSuffix(account.name)
+
+  // If no suffix, check account's groups
+  if (!suffix && account.groups) {
+    for (const group of account.groups) {
+      suffix = extractSuffix(group.name)
+      if (suffix) break
+    }
+  }
+
+  return suffix
+}
+
+/**
  * Find the bucket book in the collection by ID
  */
 function findBucketBook(payload: BkperWebhookPayload, bucketBookId: string): BkperBook | undefined {
