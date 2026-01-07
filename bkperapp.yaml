@@ -2,6 +2,9 @@ id: bucket-bot
 name: Bucket Bot
 description: Distribute savings from a GL over several buckets or envelopes in a bucket book to track your saving goals.
 webhookUrl: https://bucket-bot.jvdb.workers.dev/webhook
+menuUrl: https://script.google.com/macros/s/AKfycby4vPaiCmEcB6Bw9UIaCCx2IMfC9rvYDnQ24S8JJ0PXzJG4XnS0rQ5Aj5or8Z5l_eOrPw/exec?bookId=${book.id}
+menuPopupWidth: 900
+menuPopupHeight: 700
 logoUrl: https://lh3.googleusercontent.com/P5bX9wYu3YLmD0Gxp5-l8hOZ9w3YhttRMnQFONtrVBTuJ-XVVnN0i9o3mnlXSHqyTvi5
 apiVersion: v5
 events:

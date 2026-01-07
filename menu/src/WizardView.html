@@ -1,0 +1,1365 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      font-size: 14px;
+      color: #333;
+      background: #f5f5f5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    .header {
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 16px 24px;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1a73e8;
+      margin-bottom: 4px;
+    }
+
+    .header .subtitle {
+      font-size: 13px;
+      color: #666;
+    }
+
+    /* Progress Steps */
+    .progress-steps {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    .progress-step {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: #e8e8e8;
+      border-radius: 16px;
+      font-size: 12px;
+      color: #666;
+      transition: all 0.2s;
+    }
+
+    .progress-step.active {
+      background: #1a73e8;
+      color: #fff;
+    }
+
+    .progress-step.completed {
+      background: #34a853;
+      color: #fff;
+    }
+
+    .progress-step .step-num {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* Main Content */
+    .main {
+      flex: 1;
+      padding: 24px;
+      overflow-y: auto;
+    }
+
+    .step-panel {
+      display: none;
+      background: #fff;
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .step-panel.active {
+      display: block;
+    }
+
+    .step-panel h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #333;
+    }
+
+    .step-panel p {
+      color: #666;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    /* Form Elements */
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: #333;
+    }
+
+    .form-group input[type="text"],
+    .form-group select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #1a73e8;
+    }
+
+    .form-group .hint {
+      font-size: 12px;
+      color: #888;
+      margin-top: 4px;
+    }
+
+    /* Radio Options */
+    .radio-options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .radio-option:hover {
+      border-color: #1a73e8;
+    }
+
+    .radio-option.selected {
+      border-color: #1a73e8;
+      background: #e8f0fe;
+    }
+
+    .radio-option input {
+      display: none;
+    }
+
+    .radio-option .radio-circle {
+      width: 18px;
+      height: 18px;
+      border: 2px solid #ddd;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .radio-option.selected .radio-circle {
+      border-color: #1a73e8;
+    }
+
+    .radio-option.selected .radio-circle::after {
+      content: '';
+      width: 10px;
+      height: 10px;
+      background: #1a73e8;
+      border-radius: 50%;
+    }
+
+    /* Checkbox List */
+    .checkbox-list {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+    }
+
+    .checkbox-item:last-child {
+      border-bottom: none;
+    }
+
+    .checkbox-item:hover {
+      background: #f5f5f5;
+    }
+
+    .checkbox-item input {
+      width: 16px;
+      height: 16px;
+    }
+
+    .checkbox-item .account-name {
+      flex: 1;
+    }
+
+    .checkbox-item .account-balance {
+      color: #666;
+      font-size: 13px;
+    }
+
+    .checkbox-item .suffix-badge {
+      background: #e8f0fe;
+      color: #1a73e8;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    /* Bucket Table */
+    .bucket-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .bucket-table th,
+    .bucket-table td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+
+    .bucket-table th {
+      font-weight: 500;
+      color: #666;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .bucket-table input[type="text"],
+    .bucket-table input[type="number"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .bucket-table .percentage-input {
+      width: 80px;
+      text-align: right;
+    }
+
+    .bucket-table .remove-btn {
+      background: none;
+      border: none;
+      color: #ea4335;
+      cursor: pointer;
+      font-size: 18px;
+    }
+
+    .add-bucket-btn {
+      margin-top: 12px;
+      background: none;
+      border: 1px dashed #1a73e8;
+      color: #1a73e8;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      width: 100%;
+    }
+
+    .add-bucket-btn:hover {
+      background: #e8f0fe;
+    }
+
+    /* Percentage Summary */
+    .percentage-summary {
+      margin-top: 16px;
+      padding: 12px 16px;
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .percentage-summary.valid {
+      background: #e6f4ea;
+      color: #137333;
+    }
+
+    .percentage-summary.invalid {
+      background: #fce8e6;
+      color: #c5221f;
+    }
+
+    .percentage-summary .total {
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .distribute-btn {
+      background: #1a73e8;
+      color: #fff;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    /* Distribution Panel */
+    .distribution-group {
+      margin-bottom: 24px;
+      padding: 16px;
+      background: #f9f9f9;
+      border-radius: 8px;
+    }
+
+    .distribution-group h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .distribution-group .total-balance {
+      color: #1a73e8;
+      font-weight: 600;
+    }
+
+    /* Review Summary */
+    .review-section {
+      margin-bottom: 16px;
+      padding: 16px;
+      background: #f9f9f9;
+      border-radius: 8px;
+    }
+
+    .review-section h3 {
+      font-size: 13px;
+      font-weight: 600;
+      color: #666;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .review-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .review-item:last-child {
+      border-bottom: none;
+    }
+
+    /* Footer */
+    .footer {
+      background: #fff;
+      border-top: 1px solid #e0e0e0;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-left {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-secondary {
+      background: #fff;
+      border: 1px solid #ddd;
+      color: #333;
+    }
+
+    .btn-secondary:hover {
+      background: #f5f5f5;
+    }
+
+    .btn-primary {
+      background: #1a73e8;
+      border: 1px solid #1a73e8;
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: #1557b0;
+    }
+
+    .btn-primary:disabled {
+      background: #ccc;
+      border-color: #ccc;
+      cursor: not-allowed;
+    }
+
+    .btn-danger {
+      background: #ea4335;
+      border: 1px solid #ea4335;
+      color: #fff;
+    }
+
+    .btn-danger:hover {
+      background: #c5221f;
+    }
+
+    /* Loading */
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 40px;
+    }
+
+    .loading.active {
+      display: block;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #e8e8e8;
+      border-top-color: #1a73e8;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Error/Success Messages */
+    .message {
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+    }
+
+    .message.error {
+      background: #fce8e6;
+      color: #c5221f;
+    }
+
+    .message.success {
+      background: #e6f4ea;
+      color: #137333;
+    }
+
+    /* Permission Error */
+    .permission-error {
+      text-align: center;
+      padding: 40px;
+    }
+
+    .permission-error h2 {
+      color: #ea4335;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <h1>Bucket Bot Setup</h1>
+    <div class="subtitle">Configure bucket distribution for <strong><?!= glBookName ?></strong></div>
+
+    <div class="progress-steps" id="progress-steps">
+      <div class="progress-step" data-step="1">
+        <span class="step-num">1</span>
+        <span>Bucket Book</span>
+      </div>
+      <div class="progress-step" data-step="2">
+        <span class="step-num">2</span>
+        <span>Accounts</span>
+      </div>
+      <div class="progress-step" data-step="3">
+        <span class="step-num">3</span>
+        <span>Buckets</span>
+      </div>
+      <div class="progress-step" data-step="4">
+        <span class="step-num">4</span>
+        <span>Savings</span>
+      </div>
+      <div class="progress-step" data-step="5">
+        <span class="step-num">5</span>
+        <span>Distribution</span>
+      </div>
+      <div class="progress-step" data-step="6">
+        <span class="step-num">6</span>
+        <span>Review</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main">
+    <!-- Loading -->
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <div>Loading...</div>
+    </div>
+
+    <!-- Permission Error -->
+    <? if (!canEdit) { ?>
+    <div class="permission-error">
+      <h2>Permission Required</h2>
+      <p><?!= permissionError ?></p>
+    </div>
+    <? } else { ?>
+
+    <!-- Step 1: Bucket Book Selection -->
+    <div class="step-panel" id="step-1">
+      <h2>Step 1: Select Bucket Book</h2>
+      <p>Choose an existing book in this collection to use as your bucket book, or create a new one.</p>
+
+      <div class="radio-options" id="bucket-book-options">
+        <!-- Populated by JavaScript -->
+      </div>
+
+      <div class="form-group" id="new-book-name-group" style="display: none; margin-top: 16px;">
+        <label for="new-book-name">New Bucket Book Name</label>
+        <input type="text" id="new-book-name" placeholder="e.g., My Buckets">
+      </div>
+    </div>
+
+    <!-- Step 2: Income/Withdrawal Accounts -->
+    <div class="step-panel" id="step-2">
+      <h2>Step 2: Income & Withdrawal Accounts</h2>
+      <p>Configure the accounts used for deposits and withdrawals in your bucket book.</p>
+
+      <div class="form-group">
+        <label for="income-account">Income Account (Incoming)</label>
+        <select id="income-account">
+          <!-- Populated by JavaScript -->
+        </select>
+        <div class="hint">Used as the source when depositing to buckets</div>
+      </div>
+
+      <div class="form-group">
+        <label for="withdrawal-account">Withdrawal Account (Outgoing)</label>
+        <select id="withdrawal-account">
+          <!-- Populated by JavaScript -->
+        </select>
+        <div class="hint">Used as the destination when withdrawing from buckets</div>
+      </div>
+    </div>
+
+    <!-- Step 3: Bucket Accounts -->
+    <div class="step-panel" id="step-3">
+      <h2>Step 3: Configure Buckets</h2>
+      <p>Add your bucket accounts and set their distribution percentages. Percentages must sum to 100%.</p>
+
+      <table class="bucket-table">
+        <thead>
+          <tr>
+            <th>Bucket Name</th>
+            <th style="width: 100px;">Percentage</th>
+            <th style="width: 50px;"></th>
+          </tr>
+        </thead>
+        <tbody id="bucket-list">
+          <!-- Populated by JavaScript -->
+        </tbody>
+      </table>
+
+      <button class="add-bucket-btn" onclick="addBucket()">+ Add Bucket</button>
+
+      <div class="percentage-summary" id="percentage-summary">
+        <span>Total: <span class="total" id="percentage-total">0%</span></span>
+        <button class="distribute-btn" onclick="distributeEvenly()">Distribute Evenly</button>
+      </div>
+    </div>
+
+    <!-- Step 4: GL Savings Accounts -->
+    <div class="step-panel" id="step-4">
+      <h2>Step 4: Select Savings Accounts</h2>
+      <p>Choose which accounts in your GL book should trigger bucket distribution when transactions are posted.</p>
+
+      <div class="checkbox-list" id="savings-account-list">
+        <!-- Populated by JavaScript -->
+      </div>
+
+      <div class="form-group" style="margin-top: 16px;">
+        <label>
+          <input type="checkbox" id="create-new-savings" onchange="toggleNewSavingsInput()">
+          Create a new savings account
+        </label>
+      </div>
+
+      <div class="form-group" id="new-savings-group" style="display: none;">
+        <label for="new-savings-name">New Savings Account Name</label>
+        <input type="text" id="new-savings-name" placeholder="e.g., High Yield Savings">
+      </div>
+    </div>
+
+    <!-- Step 5: Initial Distribution -->
+    <div class="step-panel" id="step-5">
+      <h2>Step 5: Initial Distribution</h2>
+      <p>Distribute existing savings balances across your buckets. This step is optional if you have no existing balances.</p>
+
+      <div id="distribution-groups">
+        <!-- Populated by JavaScript -->
+      </div>
+    </div>
+
+    <!-- Step 6: Review & Apply -->
+    <div class="step-panel" id="step-6">
+      <h2>Step 6: Review & Apply</h2>
+      <p>Review your configuration before applying.</p>
+
+      <div id="review-content">
+        <!-- Populated by JavaScript -->
+      </div>
+
+      <div class="message success" id="success-message" style="display: none;">
+        Configuration applied successfully!
+      </div>
+
+      <div class="message error" id="error-message" style="display: none;"></div>
+    </div>
+
+    <? } ?>
+  </div>
+
+  <!-- Footer -->
+  <? if (canEdit) { ?>
+  <div class="footer">
+    <div class="footer-left">
+      <button class="btn btn-secondary" id="back-btn" onclick="prevStep()" style="display: none;">Back</button>
+      <? if (isEditMode) { ?>
+      <button class="btn btn-danger" onclick="confirmReset()">Reset</button>
+      <? } ?>
+    </div>
+    <button class="btn btn-primary" id="next-btn" onclick="nextStep()">Next</button>
+  </div>
+  <? } ?>
+
+  <script>
+    // State
+    let state = null;
+    let currentStep = 1;
+    const totalSteps = 6;
+    const glBookId = '<?!= glBookId ?>';
+    const isEditMode = <?!= isEditMode ?>;
+
+    // Initialize
+    window.onload = function() {
+      showLoading(true);
+      google.script.run
+        .withSuccessHandler(onStateLoaded)
+        .withFailureHandler(onError)
+        .loadWizardState(glBookId);
+    };
+
+    function onStateLoaded(loadedState) {
+      state = loadedState;
+      showLoading(false);
+      renderStep(1);
+      updateProgressSteps();
+    }
+
+    function onError(error) {
+      showLoading(false);
+      alert('Error: ' + error.message);
+    }
+
+    function showLoading(show) {
+      document.getElementById('loading').classList.toggle('active', show);
+    }
+
+    // Navigation
+    function nextStep() {
+      if (!validateCurrentStep()) return;
+
+      if (currentStep < totalSteps) {
+        // Skip step 5 if no distributions needed
+        if (currentStep === 4 && !shouldShowDistributionStep()) {
+          currentStep = 6;
+        } else {
+          currentStep++;
+        }
+        renderStep(currentStep);
+        updateProgressSteps();
+      } else {
+        applyConfiguration();
+      }
+    }
+
+    function prevStep() {
+      if (currentStep > 1) {
+        // Skip step 5 if no distributions needed
+        if (currentStep === 6 && !shouldShowDistributionStep()) {
+          currentStep = 4;
+        } else {
+          currentStep--;
+        }
+        renderStep(currentStep);
+        updateProgressSteps();
+      }
+    }
+
+    function shouldShowDistributionStep() {
+      if (!state) return false;
+      const totalBalance = state.currentSavingsAccounts.reduce((sum, a) => sum + a.balance, 0);
+      return totalBalance > 0;
+    }
+
+    function renderStep(step) {
+      // Hide all panels
+      document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+
+      // Show current panel
+      const panel = document.getElementById('step-' + step);
+      if (panel) {
+        panel.classList.add('active');
+      }
+
+      // Update buttons
+      document.getElementById('back-btn').style.display = step > 1 ? 'inline-block' : 'none';
+      document.getElementById('next-btn').textContent = step === totalSteps ? 'Apply' : 'Next';
+
+      // Render step content
+      switch (step) {
+        case 1: renderStep1(); break;
+        case 2: renderStep2(); break;
+        case 3: renderStep3(); break;
+        case 4: renderStep4(); break;
+        case 5: renderStep5(); break;
+        case 6: renderStep6(); break;
+      }
+    }
+
+    function updateProgressSteps() {
+      document.querySelectorAll('.progress-step').forEach(el => {
+        const step = parseInt(el.dataset.step);
+        el.classList.remove('active', 'completed');
+        if (step === currentStep) {
+          el.classList.add('active');
+        } else if (step < currentStep) {
+          el.classList.add('completed');
+        }
+      });
+    }
+
+    // Step 1: Bucket Book Selection
+    function renderStep1() {
+      const container = document.getElementById('bucket-book-options');
+      let html = '';
+
+      // Create new option
+      const isNew = state.createNewBucketBook || !state.bucketBookId;
+      html += `
+        <label class="radio-option ${isNew ? 'selected' : ''}" onclick="selectBucketBookOption('new')">
+          <input type="radio" name="bucket-book" value="new" ${isNew ? 'checked' : ''}>
+          <span class="radio-circle"></span>
+          <span>Create a new bucket book</span>
+        </label>
+      `;
+
+      // Existing books
+      for (const book of state.availableBooks) {
+        if (book.isCurrentGlBook) continue;
+        const isSelected = !state.createNewBucketBook && state.bucketBookId === book.id;
+        html += `
+          <label class="radio-option ${isSelected ? 'selected' : ''}" onclick="selectBucketBookOption('${book.id}')">
+            <input type="radio" name="bucket-book" value="${book.id}" ${isSelected ? 'checked' : ''}>
+            <span class="radio-circle"></span>
+            <span>${book.name} ${book.isBucketBook ? '(current)' : ''}</span>
+          </label>
+        `;
+      }
+
+      container.innerHTML = html;
+      document.getElementById('new-book-name-group').style.display = isNew ? 'block' : 'none';
+      document.getElementById('new-book-name').value = state.bucketBookName || '';
+    }
+
+    function selectBucketBookOption(value) {
+      state.createNewBucketBook = value === 'new';
+      state.bucketBookId = value === 'new' ? null : value;
+
+      document.querySelectorAll('.radio-option').forEach(el => el.classList.remove('selected'));
+      event.currentTarget.classList.add('selected');
+      document.getElementById('new-book-name-group').style.display = value === 'new' ? 'block' : 'none';
+    }
+
+    // Step 2: Income/Withdrawal Accounts
+    function renderStep2() {
+      const incomeSelect = document.getElementById('income-account');
+      const withdrawalSelect = document.getElementById('withdrawal-account');
+
+      // Income accounts
+      let incomeHtml = '<option value="__new__">+ Create new account</option>';
+      for (const acc of state.availableIncomingAccounts || []) {
+        const selected = acc.name === state.incomeAccountName ? 'selected' : '';
+        incomeHtml += `<option value="${acc.name}" ${selected}>${acc.name}</option>`;
+      }
+      if (state.incomeAccountName && !state.availableIncomingAccounts.find(a => a.name === state.incomeAccountName)) {
+        incomeHtml += `<option value="${state.incomeAccountName}" selected>${state.incomeAccountName} (new)</option>`;
+      }
+      incomeSelect.innerHTML = incomeHtml;
+      if (state.incomeAccountName) {
+        incomeSelect.value = state.incomeAccountName;
+      }
+
+      // Withdrawal accounts
+      let withdrawalHtml = '<option value="__new__">+ Create new account</option>';
+      for (const acc of state.availableOutgoingAccounts || []) {
+        const selected = acc.name === state.withdrawalAccountName ? 'selected' : '';
+        withdrawalHtml += `<option value="${acc.name}" ${selected}>${acc.name}</option>`;
+      }
+      if (state.withdrawalAccountName && !state.availableOutgoingAccounts.find(a => a.name === state.withdrawalAccountName)) {
+        withdrawalHtml += `<option value="${state.withdrawalAccountName}" selected>${state.withdrawalAccountName} (new)</option>`;
+      }
+      withdrawalSelect.innerHTML = withdrawalHtml;
+      if (state.withdrawalAccountName) {
+        withdrawalSelect.value = state.withdrawalAccountName;
+      }
+
+      // Handle new account selection
+      incomeSelect.onchange = function() {
+        if (this.value === '__new__') {
+          const name = prompt('Enter income account name:', 'Savings');
+          if (name) {
+            state.incomeAccountName = name;
+            renderStep2();
+          } else {
+            this.value = state.incomeAccountName;
+          }
+        } else {
+          state.incomeAccountName = this.value;
+        }
+      };
+
+      withdrawalSelect.onchange = function() {
+        if (this.value === '__new__') {
+          const name = prompt('Enter withdrawal account name:', 'Withdrawal');
+          if (name) {
+            state.withdrawalAccountName = name;
+            renderStep2();
+          } else {
+            this.value = state.withdrawalAccountName;
+          }
+        } else {
+          state.withdrawalAccountName = this.value;
+        }
+      };
+    }
+
+    // Step 3: Bucket Accounts
+    function renderStep3() {
+      const tbody = document.getElementById('bucket-list');
+      let html = '';
+
+      for (let i = 0; i < state.buckets.length; i++) {
+        const bucket = state.buckets[i];
+        html += `
+          <tr>
+            <td>
+              <input type="text" value="${bucket.name}"
+                onchange="updateBucketName(${i}, this.value)"
+                placeholder="Bucket name">
+            </td>
+            <td>
+              <input type="number" class="percentage-input" value="${bucket.percentage}"
+                onchange="updateBucketPercentage(${i}, this.value)"
+                min="0" max="100" step="1">
+            </td>
+            <td>
+              <button class="remove-btn" onclick="removeBucket(${i})">×</button>
+            </td>
+          </tr>
+        `;
+      }
+
+      tbody.innerHTML = html;
+      updatePercentageSummary();
+    }
+
+    function addBucket() {
+      state.buckets.push({ id: null, name: '', percentage: 0, isNew: true });
+      renderStep3();
+    }
+
+    function removeBucket(index) {
+      state.buckets.splice(index, 1);
+      renderStep3();
+    }
+
+    function updateBucketName(index, value) {
+      state.buckets[index].name = value;
+    }
+
+    function updateBucketPercentage(index, value) {
+      state.buckets[index].percentage = parseFloat(value) || 0;
+      updatePercentageSummary();
+    }
+
+    function distributeEvenly() {
+      if (state.buckets.length === 0) return;
+      const percentage = Math.floor(100 / state.buckets.length);
+      const remainder = 100 - (percentage * state.buckets.length);
+
+      state.buckets.forEach((b, i) => {
+        b.percentage = percentage + (i === 0 ? remainder : 0);
+      });
+      renderStep3();
+    }
+
+    function updatePercentageSummary() {
+      const total = state.buckets.reduce((sum, b) => sum + b.percentage, 0);
+      const summary = document.getElementById('percentage-summary');
+      const totalEl = document.getElementById('percentage-total');
+
+      totalEl.textContent = total + '%';
+      summary.classList.remove('valid', 'invalid');
+      summary.classList.add(total === 100 ? 'valid' : 'invalid');
+    }
+
+    // Step 4: GL Savings Accounts
+    function renderStep4() {
+      const container = document.getElementById('savings-account-list');
+      let html = '';
+
+      for (const acc of state.availableGlAssetAccounts) {
+        const isChecked = state.savingsAccountIds.includes(acc.id);
+        const suffix = extractSuffix(acc.name);
+        html += `
+          <label class="checkbox-item">
+            <input type="checkbox" value="${acc.id}"
+              ${isChecked ? 'checked' : ''}
+              onchange="toggleSavingsAccount('${acc.id}')">
+            <span class="account-name">${acc.name}</span>
+            ${suffix ? `<span class="suffix-badge">${suffix}</span>` : ''}
+            <span class="account-balance">${formatCurrency(acc.balance)}</span>
+          </label>
+        `;
+      }
+
+      container.innerHTML = html;
+    }
+
+    function toggleSavingsAccount(accountId) {
+      const index = state.savingsAccountIds.indexOf(accountId);
+      if (index === -1) {
+        state.savingsAccountIds.push(accountId);
+      } else {
+        state.savingsAccountIds.splice(index, 1);
+      }
+    }
+
+    function toggleNewSavingsInput() {
+      const show = document.getElementById('create-new-savings').checked;
+      document.getElementById('new-savings-group').style.display = show ? 'block' : 'none';
+    }
+
+    // Step 5: Initial Distribution
+    function renderStep5() {
+      const container = document.getElementById('distribution-groups');
+
+      if (!shouldShowDistributionStep()) {
+        container.innerHTML = '<p>No existing balances to distribute.</p>';
+        return;
+      }
+
+      // Build distributions by suffix
+      const distributions = buildDistributions();
+      state.distributions = distributions;
+
+      let html = '';
+      for (const dist of distributions) {
+        html += `
+          <div class="distribution-group">
+            <h3>
+              ${dist.suffix ? `<span class="suffix-badge">${dist.suffix}</span>` : 'General'}
+              Savings: <span class="total-balance">${formatCurrency(dist.totalBalance)}</span>
+            </h3>
+            <table class="bucket-table">
+              <thead>
+                <tr>
+                  <th>Bucket</th>
+                  <th style="width: 120px;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+
+        for (const bucketName in dist.bucketAmounts) {
+          html += `
+            <tr>
+              <td>${bucketName}</td>
+              <td>
+                <input type="number" value="${dist.bucketAmounts[bucketName].toFixed(2)}"
+                  onchange="updateDistributionAmount('${dist.suffix || ''}', '${bucketName}', this.value)"
+                  step="0.01" min="0">
+              </td>
+            </tr>
+          `;
+        }
+
+        html += `
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      container.innerHTML = html;
+    }
+
+    function buildDistributions() {
+      const distributions = [];
+      const suffixGroups = {};
+
+      // Group selected savings accounts by suffix
+      for (const accountId of state.savingsAccountIds) {
+        const acc = state.availableGlAssetAccounts.find(a => a.id === accountId);
+        if (!acc || acc.balance <= 0) continue;
+
+        const suffix = extractSuffix(acc.name) || '';
+        if (!suffixGroups[suffix]) {
+          suffixGroups[suffix] = { accounts: [], totalBalance: 0 };
+        }
+        suffixGroups[suffix].accounts.push(acc);
+        suffixGroups[suffix].totalBalance += acc.balance;
+      }
+
+      // Build distribution for each suffix group
+      for (const suffix in suffixGroups) {
+        const group = suffixGroups[suffix];
+
+        // Filter matching buckets
+        const matchingBuckets = state.buckets.filter(b => {
+          const bucketSuffix = extractSuffix(b.name) || '';
+          return suffix === '' || bucketSuffix === suffix || bucketSuffix === '';
+        });
+
+        const totalPercentage = matchingBuckets.reduce((sum, b) => sum + b.percentage, 0);
+        const bucketAmounts = {};
+
+        for (const bucket of matchingBuckets) {
+          const normalizedPct = totalPercentage > 0 ? (bucket.percentage / totalPercentage) : 0;
+          bucketAmounts[bucket.name] = Math.round(normalizedPct * group.totalBalance * 100) / 100;
+        }
+
+        distributions.push({
+          suffix: suffix || null,
+          totalBalance: group.totalBalance,
+          savingsAccounts: group.accounts.map(a => ({ id: a.id, name: a.name, balance: a.balance })),
+          bucketAmounts: bucketAmounts
+        });
+      }
+
+      return distributions;
+    }
+
+    function updateDistributionAmount(suffix, bucketName, value) {
+      const dist = state.distributions.find(d => (d.suffix || '') === suffix);
+      if (dist) {
+        dist.bucketAmounts[bucketName] = parseFloat(value) || 0;
+      }
+    }
+
+    // Step 6: Review
+    function renderStep6() {
+      const container = document.getElementById('review-content');
+      const newBookName = document.getElementById('new-book-name')?.value || '';
+
+      let html = '';
+
+      // Bucket Book
+      html += `
+        <div class="review-section">
+          <h3>Bucket Book</h3>
+          <div class="review-item">
+            <span>Book</span>
+            <span>${state.createNewBucketBook ? newBookName + ' (new)' : state.bucketBookName || 'Not selected'}</span>
+          </div>
+        </div>
+      `;
+
+      // Accounts
+      html += `
+        <div class="review-section">
+          <h3>Accounts</h3>
+          <div class="review-item">
+            <span>Income Account</span>
+            <span>${state.incomeAccountName}</span>
+          </div>
+          <div class="review-item">
+            <span>Withdrawal Account</span>
+            <span>${state.withdrawalAccountName}</span>
+          </div>
+        </div>
+      `;
+
+      // Buckets
+      html += `
+        <div class="review-section">
+          <h3>Buckets</h3>
+      `;
+      for (const bucket of state.buckets) {
+        html += `
+          <div class="review-item">
+            <span>${bucket.name} ${bucket.isNew ? '(new)' : ''}</span>
+            <span>${bucket.percentage}%</span>
+          </div>
+        `;
+      }
+      html += '</div>';
+
+      // Savings Accounts
+      html += `
+        <div class="review-section">
+          <h3>Savings Accounts</h3>
+      `;
+      for (const accountId of state.savingsAccountIds) {
+        const acc = state.availableGlAssetAccounts.find(a => a.id === accountId);
+        if (acc) {
+          html += `
+            <div class="review-item">
+              <span>${acc.name}</span>
+              <span>${formatCurrency(acc.balance)}</span>
+            </div>
+          `;
+        }
+      }
+      const newSavingsName = document.getElementById('new-savings-name')?.value;
+      if (document.getElementById('create-new-savings')?.checked && newSavingsName) {
+        html += `
+          <div class="review-item">
+            <span>${newSavingsName} (new)</span>
+            <span>-</span>
+          </div>
+        `;
+      }
+      html += '</div>';
+
+      // Initial Distribution
+      if (state.distributions && state.distributions.length > 0) {
+        html += `
+          <div class="review-section">
+            <h3>Initial Distribution</h3>
+        `;
+        for (const dist of state.distributions) {
+          for (const bucketName in dist.bucketAmounts) {
+            if (dist.bucketAmounts[bucketName] > 0) {
+              html += `
+                <div class="review-item">
+                  <span>${bucketName}</span>
+                  <span>${formatCurrency(dist.bucketAmounts[bucketName])}</span>
+                </div>
+              `;
+            }
+          }
+        }
+        html += '</div>';
+      }
+
+      container.innerHTML = html;
+    }
+
+    // Validation
+    function validateCurrentStep() {
+      switch (currentStep) {
+        case 1:
+          if (state.createNewBucketBook) {
+            const name = document.getElementById('new-book-name').value.trim();
+            if (!name) {
+              alert('Please enter a name for the new bucket book.');
+              return false;
+            }
+            state.bucketBookName = name;
+          } else if (!state.bucketBookId) {
+            alert('Please select a bucket book.');
+            return false;
+          }
+          return true;
+
+        case 2:
+          if (!state.incomeAccountName || !state.withdrawalAccountName) {
+            alert('Please configure income and withdrawal accounts.');
+            return false;
+          }
+          return true;
+
+        case 3:
+          if (state.buckets.length === 0) {
+            alert('Please add at least one bucket.');
+            return false;
+          }
+          const total = state.buckets.reduce((sum, b) => sum + b.percentage, 0);
+          if (total !== 100) {
+            alert('Percentages must sum to 100%. Current total: ' + total + '%');
+            return false;
+          }
+          for (const bucket of state.buckets) {
+            if (!bucket.name.trim()) {
+              alert('Please enter a name for all buckets.');
+              return false;
+            }
+          }
+          return true;
+
+        case 4:
+          // Savings accounts are optional
+          return true;
+
+        case 5:
+          // Distribution amounts are optional
+          return true;
+
+        case 6:
+          return true;
+      }
+      return true;
+    }
+
+    // Apply Configuration
+    function applyConfiguration() {
+      const nextBtn = document.getElementById('next-btn');
+      nextBtn.textContent = 'Applying...';
+      nextBtn.disabled = true;
+
+      const config = {
+        glBookId: glBookId,
+        bucketBookId: state.bucketBookId,
+        createNewBucketBook: state.createNewBucketBook,
+        newBucketBookName: state.bucketBookName || '',
+        incomeAccountName: state.incomeAccountName,
+        withdrawalAccountName: state.withdrawalAccountName,
+        createNewIncomeAccount: !state.availableIncomingAccounts.find(a => a.name === state.incomeAccountName),
+        createNewWithdrawalAccount: !state.availableOutgoingAccounts.find(a => a.name === state.withdrawalAccountName),
+        buckets: state.buckets,
+        savingsAccountIds: state.savingsAccountIds,
+        newSavingsAccountName: document.getElementById('create-new-savings')?.checked
+          ? document.getElementById('new-savings-name')?.value : null,
+        distributions: state.distributions || []
+      };
+
+      google.script.run
+        .withSuccessHandler(onApplySuccess)
+        .withFailureHandler(onApplyError)
+        .applyConfiguration(config);
+    }
+
+    function onApplySuccess(result) {
+      const nextBtn = document.getElementById('next-btn');
+
+      if (result.success) {
+        document.getElementById('success-message').style.display = 'block';
+        document.getElementById('error-message').style.display = 'none';
+        nextBtn.textContent = 'Done';
+        nextBtn.onclick = function() { closeWindow(); };
+        nextBtn.disabled = false;
+      } else {
+        document.getElementById('error-message').textContent = result.error || 'Unknown error';
+        document.getElementById('error-message').style.display = 'block';
+        nextBtn.textContent = 'Retry';
+        nextBtn.disabled = false;
+      }
+    }
+
+    function onApplyError(error) {
+      document.getElementById('error-message').textContent = error.message || 'Unknown error';
+      document.getElementById('error-message').style.display = 'block';
+      const nextBtn = document.getElementById('next-btn');
+      nextBtn.textContent = 'Retry';
+      nextBtn.disabled = false;
+    }
+
+    // Reset Configuration
+    function confirmReset() {
+      if (confirm('Are you sure you want to reset? This will trash all bucket transactions and clear the configuration.')) {
+        showLoading(true);
+        google.script.run
+          .withSuccessHandler(onResetSuccess)
+          .withFailureHandler(onError)
+          .resetConfiguration(glBookId);
+      }
+    }
+
+    function onResetSuccess(result) {
+      showLoading(false);
+      if (result.success) {
+        alert('Reset complete. ' + result.transactionsTrashed + ' transactions trashed.');
+        closeWindow();
+      } else {
+        alert('Reset failed: ' + result.error);
+      }
+    }
+
+    // Utilities
+    function closeWindow() {
+      try {
+        window.top.close();
+      } catch (error) {
+        console.log("Attempt to automatically close window failed: " + error);
+      }
+    }
+    function extractSuffix(name) {
+      if (!name) return null;
+      const words = name.trim().split(/\s+/);
+      if (words.length < 2) return null;
+      const lastWord = words[words.length - 1];
+      if (/^[A-Z]+$/.test(lastWord)) return lastWord;
+      return null;
+    }
+
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(amount);
+    }
+  </script>
+</body>
+</html>

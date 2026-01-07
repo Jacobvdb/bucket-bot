@@ -61,17 +61,17 @@ When you withdraw €500 specifically for a vacation, you can use the `bucket` p
 │  │ Balance: €8,000     │  │ Balance: €14,000            │   │
 │  └─────────────────────┘  └─────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
-                              │
-                              │ Bkper Webhook Events
-                              ▼
-                    ┌─────────────────┐
-                    │   Bucket Bot    │
-                    │ (Cloudflare     │
-                    │   Worker)       │
-                    └─────────────────┘
-                              │
-                              │ Automatic Distribution
-                              ▼
+         │                                    │
+         │ Bkper Webhook Events               │ Setup Wizard
+         ▼                                    ▼
+┌─────────────────┐                 ┌─────────────────┐
+│   Bucket Bot    │                 │   Menu UI       │
+│  (Cloudflare    │                 │  (Google Apps   │
+│   Worker)       │                 │   Script)       │
+└─────────────────┘                 └─────────────────┘
+         │                                    │
+         │ Automatic Distribution             │ Configuration
+         ▼                                    ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                       BUCKET BOOK                           │
 │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐         │
@@ -82,7 +82,11 @@ When you withdraw €500 specifically for a vacation, you can use the `bucket` p
 └─────────────────────────────────────────────────────────────┘
 ```
 
-Bucket Bot is deployed as a [Cloudflare Worker](https://workers.cloudflare.com/) that receives webhook events from Bkper. When transactions are created, updated, or deleted in your GL book, the bot automatically manages the corresponding bucket transactions in real-time.
+Bucket Bot consists of two components:
+
+1. **Cloudflare Worker**: Receives webhook events from Bkper and automatically distributes transactions to buckets in real-time.
+
+2. **Setup Wizard (Menu UI)**: A Google Apps Script web app accessible from Bkper's menu that guides you through configuration with a step-by-step wizard.
 
 ## Setup
 
@@ -135,7 +139,30 @@ npm install
    - `ACCOUNT_DELETED`
 4. Install the bot on your GL book
 
-### Configure Your GL Book
+### Using the Setup Wizard (Recommended)
+
+Once the bot is installed, the easiest way to configure Bucket Bot is through the **Setup Wizard**:
+
+1. Open your GL book in Bkper
+2. Click on the Bucket Bot menu item
+3. Follow the 6-step wizard:
+
+| Step | Description |
+|------|-------------|
+| **1. Bucket Book** | Select an existing book or create a new one |
+| **2. Accounts** | Configure income and withdrawal accounts |
+| **3. Buckets** | Add bucket accounts and set percentages (must sum to 100%) |
+| **4. Savings** | Select which GL accounts should trigger distribution |
+| **5. Distribution** | Optionally distribute existing balances to buckets |
+| **6. Review** | Review and apply all changes |
+
+The wizard handles all the property configuration automatically. You can re-run it anytime to modify your setup or reset the configuration.
+
+### Manual Configuration (Alternative)
+
+If you prefer to configure manually, or need to understand the underlying properties:
+
+#### Configure Your GL Book
 
 Add this property to your General Ledger book:
 
@@ -153,7 +180,7 @@ Mark your savings accounts with this property:
 
 You can also set `savings: true` on a **Group** to mark all accounts in that group as savings accounts.
 
-### Configure Your Bucket Book
+#### Configure Your Bucket Book
 
 Add these properties to your Bucket Book:
 
@@ -319,15 +346,25 @@ npm run dev
 ### Project Structure
 
 ```
-src/
-├── index.ts      # Main app, routes, event orchestration
-├── webhook.ts    # Savings detection, suffix extraction
-├── bucket.ts     # Distribution logic, transaction management
-└── types.ts      # TypeScript type definitions
+src/                        # Cloudflare Worker (webhook handler)
+├── index.ts                # Main app, routes, event orchestration
+├── webhook.ts              # Savings detection, suffix extraction
+├── bucket.ts               # Distribution logic, transaction management
+└── types.ts                # TypeScript type definitions
+
+menu/                       # Google Apps Script (setup wizard)
+└── src/
+    ├── Bot.ts              # Entry point, exposed functions
+    ├── WizardView.html     # Multi-step wizard UI
+    ├── WizardService.ts    # Wizard logic and state management
+    ├── BookService.ts      # Book operations
+    ├── AccountService.ts   # Account operations
+    ├── TransactionService.ts # Transaction operations
+    └── Types.ts            # TypeScript interfaces
 
 test/
-├── webhook.spec.ts   # Savings detection tests
-└── bucket.spec.ts    # Distribution logic tests
+├── webhook.spec.ts         # Savings detection tests
+└── bucket.spec.ts          # Distribution logic tests
 ```
 
 ### Testing with Local Tunnel

@@ -1,0 +1,21 @@
+{
+  "name": "bucket-bot-menu",
+  "version": "1.0.0",
+  "license": "MIT",
+  "scripts": {
+    "login": "clasp login",
+    "open": "clasp open",
+    "pull": "clasp pull",
+    "push": "clasp push",
+    "dev": "clasp push --watch --force",
+    "deploy": "clasp deploy"
+  },
+  "devDependencies": {
+    "@bkper/bkper-api-types": "^5.9.0",
+    "@bkper/bkper-gs-types": "^3.38.2",
+    "@google/clasp": "^2.3.0"
+  },
+  "dependencies": {
+    "@types/google-apps-script": "^2.0.8"
+  }
+}
