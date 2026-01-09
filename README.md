@@ -92,7 +92,7 @@ Bucket Bot consists of two components:
 
 ### Prerequisites
 
-1. A [Bkper](https://bkper.com) account with two books set up in a Collection
+1. A [Bkper](https://bkper.com) account with a GL book in a Collection (the bucket book can be created via the wizard)
 2. A [Cloudflare](https://cloudflare.com) account for deploying the Worker
 3. [Node.js](https://nodejs.org/) and npm installed
 4. [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) installed: `npm install -g wrangler`
@@ -149,11 +149,11 @@ Once the bot is installed, the easiest way to configure Bucket Bot is through th
 
 | Step | Description |
 |------|-------------|
-| **1. Bucket Book** | Select an existing book or create a new one |
+| **1. Bucket Book** | Select an existing book from the collection or create a new one (automatically added to the same collection) |
 | **2. Accounts** | Configure income and withdrawal accounts |
 | **3. Buckets** | Add bucket accounts and set percentages (must sum to 100%) |
 | **4. Savings** | Select which GL accounts should trigger distribution |
-| **5. Distribution** | Optionally distribute existing balances to buckets |
+| **5. Distribution** | Optionally distribute existing savings balances to buckets based on percentages |
 | **6. Review** | Review and apply all changes |
 
 The wizard handles all the property configuration automatically. You can re-run it anytime to modify your setup or reset the configuration.
