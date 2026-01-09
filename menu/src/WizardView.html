@@ -342,26 +342,105 @@
       font-size: 13px;
     }
 
-    /* Distribution Panel */
-    .distribution-group {
-      margin-bottom: 24px;
+    /* Distribution Panel - Two Section Layout */
+    .distribution-section {
+      margin-bottom: 16px;
       padding: 16px;
-      background: #f9f9f9;
       border-radius: 8px;
     }
 
-    .distribution-group h3 {
+    .distribution-section h3 {
       font-size: 14px;
       font-weight: 600;
       margin-bottom: 12px;
+    }
+
+    .savings-section {
+      background: #e3f2fd;
+    }
+
+    .buckets-section {
+      background: #e8f5e9;
+    }
+
+    .account-list, .bucket-list {
       display: flex;
-      align-items: center;
+      flex-direction: column;
       gap: 8px;
     }
 
-    .distribution-group .total-balance {
-      color: #1a73e8;
+    .account-row, .bucket-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.7);
+      border-radius: 4px;
+    }
+
+    .account-row.total-row {
+      background: rgba(255,255,255,0.9);
+      border-top: 1px solid rgba(0,0,0,0.1);
+      margin-top: 4px;
+    }
+
+    .bucket-row {
+      gap: 12px;
+    }
+
+    .bucket-row .bucket-name {
+      flex: 1;
+    }
+
+    .bucket-row input[type="number"] {
+      width: 100px;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      text-align: right;
+    }
+
+    .percentage-btn {
+      background: #fff;
+      border: 1px solid #34a853;
+      color: #34a853;
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      min-width: 50px;
+    }
+
+    .percentage-btn:hover {
+      background: #34a853;
+      color: #fff;
+    }
+
+    .total-left-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      margin-top: 12px;
+      border-radius: 4px;
       font-weight: 600;
+      background: rgba(255,255,255,0.9);
+    }
+
+    .total-left-row.zero {
+      background: #e6f4ea;
+      color: #137333;
+    }
+
+    .total-left-row.positive {
+      background: #fef7e0;
+      color: #b45309;
+    }
+
+    .total-left-row.negative {
+      background: #fce8e6;
+      color: #c5221f;
     }
 
     /* Review Summary */
@@ -1005,106 +1084,122 @@
     function renderStep5() {
       const container = document.getElementById('distribution-groups');
 
-      if (!shouldShowDistributionStep()) {
+      // Calculate total savings from selected accounts
+      let totalSavings = 0;
+      const selectedAccounts = [];
+      for (const accountId of state.savingsAccountIds) {
+        const acc = state.availableGlAssetAccounts.find(a => a.id === accountId);
+        if (acc && acc.balance > 0) {
+          selectedAccounts.push(acc);
+          totalSavings += acc.balance;
+        }
+      }
+
+      if (totalSavings === 0) {
         container.innerHTML = '<p>No existing balances to distribute.</p>';
         return;
       }
 
-      // Build distributions by suffix
-      const distributions = buildDistributions();
-      state.distributions = distributions;
+      // Store for validation
+      state.totalSavings = totalSavings;
+
+      // Initialize bucket amounts based on percentages (only if not already set)
+      if (!state.bucketAmounts) {
+        state.bucketAmounts = {};
+        for (const bucket of state.buckets) {
+          state.bucketAmounts[bucket.name] = Math.round((bucket.percentage / 100) * totalSavings * 100) / 100;
+        }
+      }
 
       let html = '';
-      for (const dist of distributions) {
-        html += `
-          <div class="distribution-group">
-            <h3>
-              ${dist.suffix ? `<span class="suffix-badge">${dist.suffix}</span>` : 'General'}
-              Savings: <span class="total-balance">${formatCurrency(dist.totalBalance)}</span>
-            </h3>
-            <table class="bucket-table">
-              <thead>
-                <tr>
-                  <th>Bucket</th>
-                  <th style="width: 120px;">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-        `;
 
-        for (const bucketName in dist.bucketAmounts) {
-          html += `
-            <tr>
-              <td>${bucketName}</td>
-              <td>
-                <input type="number" value="${dist.bucketAmounts[bucketName].toFixed(2)}"
-                  onchange="updateDistributionAmount('${dist.suffix || ''}', '${bucketName}', this.value)"
-                  step="0.01" min="0">
-              </td>
-            </tr>
-          `;
-        }
-
+      // Top section: Savings accounts (blue, read-only)
+      html += `
+        <div class="distribution-section savings-section">
+          <h3>General Ledger Savings</h3>
+          <div class="account-list">
+      `;
+      for (const acc of selectedAccounts) {
         html += `
-              </tbody>
-            </table>
-          </div>
+            <div class="account-row">
+              <span class="account-name">${acc.name}</span>
+              <span class="account-balance">${formatCurrency(acc.balance)}</span>
+            </div>
         `;
       }
+      html += `
+            <div class="account-row total-row">
+              <span class="account-name"><strong>Total</strong></span>
+              <span class="account-balance"><strong>${formatCurrency(totalSavings)}</strong></span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Bottom section: Bucket distribution (green, editable)
+      html += `
+        <div class="distribution-section buckets-section">
+          <h3>How much to start in each bucket?</h3>
+          <div class="bucket-list">
+      `;
+      for (let i = 0; i < state.buckets.length; i++) {
+        const bucket = state.buckets[i];
+        const amount = state.bucketAmounts[bucket.name] || 0;
+        html += `
+            <div class="bucket-row">
+              <span class="bucket-name">${bucket.name}</span>
+              <input type="number" id="bucket-amount-${i}"
+                value="${amount.toFixed(2)}"
+                onchange="updateBucketAmount(${i}, this.value)"
+                oninput="updateBucketAmount(${i}, this.value)"
+                step="0.01" min="0">
+              <button type="button" class="percentage-btn" onclick="fillBucketPercentage(${i})">${bucket.percentage}%</button>
+            </div>
+        `;
+      }
+      html += `
+          </div>
+          <div class="total-left-row" id="total-left-row">
+            <span>Total left:</span>
+            <span class="total-left-value" id="total-left-value">0.00</span>
+          </div>
+        </div>
+      `;
 
       container.innerHTML = html;
+      updateTotalLeft();
     }
 
-    function buildDistributions() {
-      const distributions = [];
-      const suffixGroups = {};
-
-      // Group selected savings accounts by suffix
-      for (const accountId of state.savingsAccountIds) {
-        const acc = state.availableGlAssetAccounts.find(a => a.id === accountId);
-        if (!acc || acc.balance <= 0) continue;
-
-        const suffix = extractSuffix(acc.name) || '';
-        if (!suffixGroups[suffix]) {
-          suffixGroups[suffix] = { accounts: [], totalBalance: 0 };
-        }
-        suffixGroups[suffix].accounts.push(acc);
-        suffixGroups[suffix].totalBalance += acc.balance;
-      }
-
-      // Build distribution for each suffix group
-      for (const suffix in suffixGroups) {
-        const group = suffixGroups[suffix];
-
-        // Filter matching buckets
-        const matchingBuckets = state.buckets.filter(b => {
-          const bucketSuffix = extractSuffix(b.name) || '';
-          return suffix === '' || bucketSuffix === suffix || bucketSuffix === '';
-        });
-
-        const totalPercentage = matchingBuckets.reduce((sum, b) => sum + b.percentage, 0);
-        const bucketAmounts = {};
-
-        for (const bucket of matchingBuckets) {
-          const normalizedPct = totalPercentage > 0 ? (bucket.percentage / totalPercentage) : 0;
-          bucketAmounts[bucket.name] = Math.round(normalizedPct * group.totalBalance * 100) / 100;
-        }
-
-        distributions.push({
-          suffix: suffix || null,
-          totalBalance: group.totalBalance,
-          savingsAccounts: group.accounts.map(a => ({ id: a.id, name: a.name, balance: a.balance })),
-          bucketAmounts: bucketAmounts
-        });
-      }
-
-      return distributions;
+    function updateBucketAmount(index, value) {
+      const bucket = state.buckets[index];
+      state.bucketAmounts[bucket.name] = parseFloat(value) || 0;
+      updateTotalLeft();
     }
 
-    function updateDistributionAmount(suffix, bucketName, value) {
-      const dist = state.distributions.find(d => (d.suffix || '') === suffix);
-      if (dist) {
-        dist.bucketAmounts[bucketName] = parseFloat(value) || 0;
+    function fillBucketPercentage(index) {
+      const bucket = state.buckets[index];
+      const amount = (bucket.percentage / 100) * state.totalSavings;
+      state.bucketAmounts[bucket.name] = Math.round(amount * 100) / 100;
+      document.getElementById(`bucket-amount-${index}`).value = state.bucketAmounts[bucket.name].toFixed(2);
+      updateTotalLeft();
+    }
+
+    function updateTotalLeft() {
+      const allocated = Object.values(state.bucketAmounts).reduce((sum, amt) => sum + amt, 0);
+      const left = state.totalSavings - allocated;
+
+      const leftEl = document.getElementById('total-left-value');
+      const rowEl = document.getElementById('total-left-row');
+
+      leftEl.textContent = formatCurrency(Math.abs(left));
+
+      rowEl.classList.remove('zero', 'positive', 'negative');
+      if (Math.abs(left) < 0.01) {
+        rowEl.classList.add('zero');
+      } else if (left > 0) {
+        rowEl.classList.add('positive');
+      } else {
+        rowEl.classList.add('negative');
       }
     }
 
@@ -1184,24 +1279,25 @@
       html += '</div>';
 
       // Initial Distribution
-      if (state.distributions && state.distributions.length > 0) {
-        html += `
-          <div class="review-section">
-            <h3>Initial Distribution</h3>
-        `;
-        for (const dist of state.distributions) {
-          for (const bucketName in dist.bucketAmounts) {
-            if (dist.bucketAmounts[bucketName] > 0) {
+      if (state.bucketAmounts && Object.keys(state.bucketAmounts).length > 0) {
+        const hasPositiveAmounts = Object.values(state.bucketAmounts).some(amt => amt > 0);
+        if (hasPositiveAmounts) {
+          html += `
+            <div class="review-section">
+              <h3>Initial Distribution</h3>
+          `;
+          for (const bucketName in state.bucketAmounts) {
+            if (state.bucketAmounts[bucketName] > 0) {
               html += `
                 <div class="review-item">
                   <span>${bucketName}</span>
-                  <span>${formatCurrency(dist.bucketAmounts[bucketName])}</span>
+                  <span>${formatCurrency(state.bucketAmounts[bucketName])}</span>
                 </div>
               `;
             }
           }
+          html += '</div>';
         }
-        html += '</div>';
       }
 
       container.innerHTML = html;
@@ -1254,7 +1350,15 @@
           return true;
 
         case 5:
-          // Distribution amounts are optional
+          // Validate distribution amounts sum to total
+          if (state.totalSavings > 0) {
+            const allocated = Object.values(state.bucketAmounts || {}).reduce((sum, amt) => sum + amt, 0);
+            const left = state.totalSavings - allocated;
+            if (Math.abs(left) >= 0.01) {
+              alert('Please allocate the full amount. Remaining: ' + formatCurrency(Math.abs(left)));
+              return false;
+            }
+          }
           return true;
 
         case 6:
@@ -1282,7 +1386,7 @@
         savingsAccountIds: state.savingsAccountIds,
         newSavingsAccountName: document.getElementById('create-new-savings')?.checked
           ? document.getElementById('new-savings-name')?.value : null,
-        distributions: state.distributions || []
+        bucketAmounts: state.bucketAmounts || {}
       };
 
       google.script.run

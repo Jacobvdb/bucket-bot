@@ -122,7 +122,7 @@ interface ApplyConfig {
   newSavingsAccountName: string | null;
 
   // Distribution
-  distributions: SuffixDistribution[];
+  bucketAmounts: { [bucketName: string]: number };
 }
 
 /**

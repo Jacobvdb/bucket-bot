@@ -33,8 +33,8 @@ namespace BookService {
   }
 
   /**
-   * Create a new bucket book in the collection
-   * Inherits settings from GL book
+   * Create a new bucket book via REST API
+   * Inherits settings from GL book and adds to collection
    */
   export function createBucketBook(glBookId: string, name: string): string {
     const glBook = BkperApp.getBook(glBookId);
@@ -44,15 +44,60 @@ namespace BookService {
       throw new Error('GL book must be in a collection to create a bucket book');
     }
 
-    // Create new book inheriting settings from GL book
-    const newBook = collection.createBook(name)
-      .setFractionDigits(glBook.getFractionDigits())
-      .setTimeZone(glBook.getTimeZone())
-      .setDatePattern(glBook.getDatePattern())
-      .setDecimalSeparator(glBook.getDecimalSeparator())
-      .create();
+    const collectionId = collection.getId();
+    const decimalSeparator = glBook.getDecimalSeparator();
+    const decimalSeparatorValue = decimalSeparator === BkperApp.DecimalSeparator.COMMA ? 'COMMA' : 'DOT';
 
-    return newBook.getId();
+    const payload = {
+      name: name,
+      fractionDigits: glBook.getFractionDigits(),
+      timeZone: glBook.getTimeZone(),
+      datePattern: glBook.getDatePattern(),
+      decimalSeparator: decimalSeparatorValue
+    };
+
+    const token = ScriptApp.getOAuthToken();
+    const headers = { 'Authorization': 'Bearer ' + token };
+
+    // Step 1: Create the book
+    const createResponse = UrlFetchApp.fetch('https://app.bkper.com/_ah/api/bkper/v5/books', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: headers,
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+
+    const createCode = createResponse.getResponseCode();
+    if (createCode !== 200 && createCode !== 201) {
+      throw new Error('Failed to create book: ' + createResponse.getContentText());
+    }
+
+    const createdBook = JSON.parse(createResponse.getContentText());
+    const bookId = createdBook.id;
+
+    // Step 2: Add the book to the collection
+    const addToCollectionPayload = {
+      items: [{ id: bookId }]
+    };
+
+    const addResponse = UrlFetchApp.fetch(
+      `https://app.bkper.com/_ah/api/bkper/v5/collections/${collectionId}/books/add`,
+      {
+        method: 'patch',
+        contentType: 'application/json',
+        headers: headers,
+        payload: JSON.stringify(addToCollectionPayload),
+        muteHttpExceptions: true
+      }
+    );
+
+    const addCode = addResponse.getResponseCode();
+    if (addCode !== 200) {
+      throw new Error('Failed to add book to collection: ' + addResponse.getContentText());
+    }
+
+    return bookId;
   }
 
   /**

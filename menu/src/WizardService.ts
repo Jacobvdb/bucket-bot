@@ -251,16 +251,14 @@ namespace WizardService {
       }
 
       // Step 5: Create initial distribution transactions
-      if (config.distributions && config.distributions.length > 0) {
-        const hasDistributions = config.distributions.some(d =>
-          Object.values(d.bucketAmounts).some(amount => amount > 0)
-        );
+      if (config.bucketAmounts && Object.keys(config.bucketAmounts).length > 0) {
+        const hasPositiveAmounts = Object.values(config.bucketAmounts).some(amount => amount > 0);
 
-        if (hasDistributions) {
+        if (hasPositiveAmounts) {
           result.transactionsCreated = TransactionService.createInitialDistribution(
             bucketBookId,
             config.incomeAccountName,
-            config.distributions
+            config.bucketAmounts
           );
         }
       }

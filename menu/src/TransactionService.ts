@@ -8,7 +8,7 @@ namespace TransactionService {
   export function createInitialDistribution(
     bucketBookId: string,
     incomeAccountName: string,
-    distributions: SuffixDistribution[]
+    bucketAmounts: { [bucketName: string]: number }
   ): number {
     const book = BkperApp.getBook(bucketBookId);
     const incomeAccount = book.getAccount(incomeAccountName);
@@ -20,27 +20,22 @@ namespace TransactionService {
     const today = Utilities.formatDate(new Date(), book.getTimeZone(), 'yyyy-MM-dd');
     const transactions: Bkper.Transaction[] = [];
 
-    for (const dist of distributions) {
-      for (const savingsAccount of dist.savingsAccounts) {
-        for (const bucketName in dist.bucketAmounts) {
-          const amount = dist.bucketAmounts[bucketName];
-          if (amount > 0) {
-            const bucketAccount = book.getAccount(bucketName);
-            if (!bucketAccount) {
-              throw new Error(`Bucket account not found: ${bucketName}`);
-            }
-
-            const tx = book.newTransaction()
-              .setDate(today)
-              .setAmount(amount)
-              .setDescription('Initial balance')
-              .from(incomeAccount)
-              .to(bucketAccount)
-              .setProperty(GL_ACCOUNT_ID_PROP, savingsAccount.id);
-
-            transactions.push(tx);
-          }
+    for (const bucketName in bucketAmounts) {
+      const amount = bucketAmounts[bucketName];
+      if (amount > 0) {
+        const bucketAccount = book.getAccount(bucketName);
+        if (!bucketAccount) {
+          throw new Error(`Bucket account not found: ${bucketName}`);
         }
+
+        const tx = book.newTransaction()
+          .setDate(today)
+          .setAmount(amount)
+          .setDescription('Initial balance')
+          .from(incomeAccount)
+          .to(bucketAccount);
+
+        transactions.push(tx);
       }
     }
 
