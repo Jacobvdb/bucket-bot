@@ -66,6 +66,7 @@ export function extractSuffixFromAccount(account: BkperAccount): string | undefi
   // If no suffix, check account's groups
   if (!suffix && account.groups) {
     for (const group of account.groups) {
+      if (group.properties?.savings === 'false') continue
       suffix = extractSuffix(group.name)
       if (suffix) break
     }
@@ -159,6 +160,7 @@ export function detectSavings(payload: BkperWebhookPayload): SavingsDetectionRes
     // If still no suffix, check account's groups
     if (!suffix && savingsAccount.groups) {
       for (const group of savingsAccount.groups) {
+        if (group.properties?.savings === 'false') continue
         suffix = extractSuffix(group.name)
         if (suffix) break
       }

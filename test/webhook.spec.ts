@@ -459,6 +459,31 @@ describe('detectSavings', () => {
       }
     })
 
+    it('ignores suffix from group when group has savings: false', () => {
+      const groupWithSuffix: BkperGroup = {
+        id: 'group-id',
+        name: 'Savings LONG',
+        normalizedName: 'savings_long',
+        credit: false,
+        permanent: true,
+        properties: { savings: 'false' }, // Explicitly set false
+      }
+
+      const payload = createTestPayload({
+        debitAccountProps: { savings: 'true' },
+        debitAccountName: 'RDB', // No suffix in account name
+        debitAccountGroups: [groupWithSuffix],
+      })
+
+      const result = detectSavings(payload)
+
+      expect(result.isSavings).toBe(true)
+      if (result.isSavings) {
+        expect(result.context.suffix).toBeUndefined()
+        expect(result.context.savingsAccountName).toBe('RDB')
+      }
+    })
+
     it('uses first matching suffix from multiple groups', () => {
       const group1: BkperGroup = {
         id: 'group-1',
