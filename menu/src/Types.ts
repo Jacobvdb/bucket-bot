@@ -145,3 +145,21 @@ interface ResetResult {
   transactionsTrashed: number;
   error: string | null;
 }
+
+/**
+ * Account info for Percentage Manager (all Asset accounts)
+ */
+interface PercentageManagerAccount {
+  id: string;
+  name: string;
+  percentage: number | null;  // null if no percentage property set
+}
+
+/**
+ * Result of saving percentages
+ */
+interface SavePercentagesResult {
+  success: boolean;
+  accountsUpdated: number;
+  error: string | null;
+}

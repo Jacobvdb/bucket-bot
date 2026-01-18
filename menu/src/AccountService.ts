@@ -125,8 +125,8 @@ namespace AccountService {
 
     const accountType = type === 'ASSET' ? BkperApp.AccountType.ASSET
       : type === 'LIABILITY' ? BkperApp.AccountType.LIABILITY
-      : type === 'INCOMING' ? BkperApp.AccountType.INCOMING
-      : BkperApp.AccountType.OUTGOING;
+        : type === 'INCOMING' ? BkperApp.AccountType.INCOMING
+          : BkperApp.AccountType.OUTGOING;
 
     return book.newAccount()
       .setName(name)
@@ -191,6 +191,68 @@ namespace AccountService {
         }
       }
     }
+  }
+
+  /**
+   * Get ALL Asset accounts from bucket book for Percentage Manager
+   * Returns percentage as null if not set
+   */
+  export function getAllBucketAssets(bucketBookId: string): PercentageManagerAccount[] {
+    const book = BkperApp.getBook(bucketBookId);
+    const accounts = book.getAccounts();
+    const result: PercentageManagerAccount[] = [];
+
+    for (const account of accounts) {
+      if (account.getType() === 'ASSET' && !account.isArchived()) {
+        const percentageStr = account.getProperty(PERCENTAGE_PROP);
+        result.push({
+          id: account.getId(),
+          name: account.getName(),
+          percentage: percentageStr ? parseFloat(percentageStr) : null
+        });
+      }
+    }
+
+    return result.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /**
+   * Save percentages for all accounts in Percentage Manager
+   */
+  export function savePercentages(
+    bucketBookId: string,
+    percentages: { accountId: string; percentage: number }[]
+  ): SavePercentagesResult {
+    const result: SavePercentagesResult = {
+      success: false,
+      accountsUpdated: 0,
+      error: null
+    };
+
+    try {
+      const book = BkperApp.getBook(bucketBookId);
+      const accounts = book.getAccounts();
+      const accountMap = new Map<string, Bkper.Account>();
+
+      for (const account of accounts) {
+        accountMap.set(account.getId(), account);
+      }
+
+      for (const { accountId, percentage } of percentages) {
+        const account = accountMap.get(accountId);
+        if (account) {
+          account.setProperty(PERCENTAGE_PROP, percentage.toString()).update();
+          result.accountsUpdated++;
+        }
+      }
+
+      result.success = true;
+    } catch (e) {
+      result.success = false;
+      result.error = e instanceof Error ? e.message : 'Unknown error';
+    }
+
+    return result;
   }
 
 }

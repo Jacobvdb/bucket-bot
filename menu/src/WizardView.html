@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <base target="_top">
   <meta charset="utf-8">
@@ -74,7 +75,7 @@
       width: 18px;
       height: 18px;
       border-radius: 50%;
-      background: rgba(255,255,255,0.3);
+      background: rgba(255, 255, 255, 0.3);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -94,7 +95,7 @@
       background: #fff;
       border-radius: 8px;
       padding: 24px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
 
     .step-panel.active {
@@ -363,24 +364,26 @@
       background: #e8f5e9;
     }
 
-    .account-list, .bucket-list {
+    .account-list,
+    .bucket-list {
       display: flex;
       flex-direction: column;
       gap: 8px;
     }
 
-    .account-row, .bucket-row {
+    .account-row,
+    .bucket-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 8px 12px;
-      background: rgba(255,255,255,0.7);
+      background: rgba(255, 255, 255, 0.7);
       border-radius: 4px;
     }
 
     .account-row.total-row {
-      background: rgba(255,255,255,0.9);
-      border-top: 1px solid rgba(0,0,0,0.1);
+      background: rgba(255, 255, 255, 0.9);
+      border-top: 1px solid rgba(0, 0, 0, 0.1);
       margin-top: 4px;
     }
 
@@ -425,7 +428,7 @@
       margin-top: 12px;
       border-radius: 4px;
       font-weight: 600;
-      background: rgba(255,255,255,0.9);
+      background: rgba(255, 255, 255, 0.9);
     }
 
     .total-left-row.zero {
@@ -552,7 +555,9 @@
     }
 
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     /* Error/Success Messages */
@@ -582,40 +587,155 @@
       color: #ea4335;
       margin-bottom: 16px;
     }
+
+    /* Top-level Tabs */
+    .top-tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid #e0e0e0;
+      margin-top: 12px;
+    }
+
+    .top-tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      font-weight: 500;
+      color: #666;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
+    }
+
+    .top-tab:hover {
+      color: #1a73e8;
+    }
+
+    .top-tab.active {
+      color: #1a73e8;
+      border-bottom-color: #1a73e8;
+    }
+
+    .top-tab-content {
+      display: none;
+    }
+
+    .top-tab-content.active {
+      display: block;
+    }
+
+    /* Percentage Manager Styles */
+    .pm-container {
+      background: #fff;
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .pm-container h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #333;
+    }
+
+    .pm-container p {
+      color: #666;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    .pm-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 16px;
+    }
+
+    .pm-table th,
+    .pm-table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+
+    .pm-table th {
+      font-weight: 500;
+      color: #666;
+      font-size: 12px;
+      text-transform: uppercase;
+      background: #f9f9f9;
+    }
+
+    .pm-table input[type="number"] {
+      width: 100px;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      text-align: right;
+    }
+
+    .pm-table input[type="number"]:focus {
+      outline: none;
+      border-color: #1a73e8;
+    }
+
+    .pm-total-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      border-radius: 6px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .pm-total-bar.valid {
+      background: #e6f4ea;
+      color: #137333;
+    }
+
+    .pm-total-bar.invalid {
+      background: #fce8e6;
+      color: #c5221f;
+    }
+
+    .pm-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+    }
+
+    .pm-loading,
+    .pm-error,
+    .pm-success {
+      padding: 40px;
+      text-align: center;
+    }
+
+    .pm-error {
+      color: #c5221f;
+    }
+
+    .pm-success {
+      color: #137333;
+    }
   </style>
 </head>
+
 <body>
   <!-- Header -->
   <div class="header">
-    <h1>Bucket Bot Setup</h1>
-    <div class="subtitle">Configure bucket distribution for <strong><?!= glBookName ?></strong></div>
+    <h1>Bucket Bot</h1>
+    <div class="subtitle">Configure bucket distribution for <strong>
+        <?!= glBookName ?>
+      </strong></div>
 
-    <div class="progress-steps" id="progress-steps">
-      <div class="progress-step" data-step="1">
-        <span class="step-num">1</span>
-        <span>Bucket Book</span>
-      </div>
-      <div class="progress-step" data-step="2">
-        <span class="step-num">2</span>
-        <span>Accounts</span>
-      </div>
-      <div class="progress-step" data-step="3">
-        <span class="step-num">3</span>
-        <span>Buckets</span>
-      </div>
-      <div class="progress-step" data-step="4">
-        <span class="step-num">4</span>
-        <span>Savings</span>
-      </div>
-      <div class="progress-step" data-step="5">
-        <span class="step-num">5</span>
-        <span>Distribution</span>
-      </div>
-      <div class="progress-step" data-step="6">
-        <span class="step-num">6</span>
-        <span>Review</span>
-      </div>
+    <? if (canEdit) { ?>
+    <div class="top-tabs">
+      <div class="top-tab active" data-tab="wizard" onclick="switchTopTab('wizard')">Setup Wizard</div>
+      <div class="top-tab" data-tab="percentages" onclick="switchTopTab('percentages')">Percentage Manager</div>
     </div>
+    <? } ?>
   </div>
 
   <!-- Main Content -->
@@ -626,126 +746,202 @@
       <div>Loading...</div>
     </div>
 
-    <!-- Permission Error -->
-    <? if (!canEdit) { ?>
-    <div class="permission-error">
-      <h2>Permission Required</h2>
-      <p><?!= permissionError ?></p>
-    </div>
-    <? } else { ?>
+    <!-- Tab: Setup Wizard -->
+    <div class="top-tab-content active" id="tab-wizard">
 
-    <!-- Step 1: Bucket Book Selection -->
-    <div class="step-panel" id="step-1">
-      <h2>Step 1: Select Bucket Book</h2>
-      <p>Choose an existing book in this collection to use as your bucket book, or create a new one.</p>
-
-      <div class="radio-options" id="bucket-book-options">
-        <!-- Populated by JavaScript -->
+      <div class="progress-steps" id="progress-steps">
+        <div class="progress-step" data-step="1">
+          <span class="step-num">1</span>
+          <span>Bucket Book</span>
+        </div>
+        <div class="progress-step" data-step="2">
+          <span class="step-num">2</span>
+          <span>Accounts</span>
+        </div>
+        <div class="progress-step" data-step="3">
+          <span class="step-num">3</span>
+          <span>Buckets</span>
+        </div>
+        <div class="progress-step" data-step="4">
+          <span class="step-num">4</span>
+          <span>Savings</span>
+        </div>
+        <div class="progress-step" data-step="5">
+          <span class="step-num">5</span>
+          <span>Distribution</span>
+        </div>
+        <div class="progress-step" data-step="6">
+          <span class="step-num">6</span>
+          <span>Review</span>
+        </div>
       </div>
 
-      <div class="form-group" id="new-book-name-group" style="display: none; margin-top: 16px;">
-        <label for="new-book-name">New Bucket Book Name</label>
-        <input type="text" id="new-book-name" placeholder="e.g., My Buckets">
+      <!-- Permission Error -->
+      <? if (!canEdit) { ?>
+      <div class="permission-error">
+        <h2>Permission Required</h2>
+        <p>
+          <?!= permissionError ?>
+        </p>
       </div>
-    </div>
+      <? } else { ?>
 
-    <!-- Step 2: Income/Withdrawal Accounts -->
-    <div class="step-panel" id="step-2">
-      <h2>Step 2: Income & Withdrawal Accounts</h2>
-      <p>Configure the accounts used for deposits and withdrawals in your bucket book.</p>
+      <!-- Step 1: Bucket Book Selection -->
+      <div class="step-panel" id="step-1">
+        <h2>Step 1: Select Bucket Book</h2>
+        <p>Choose an existing book in this collection to use as your bucket book, or create a new one.</p>
 
-      <div class="form-group">
-        <label for="income-account">Income Account (Incoming)</label>
-        <select id="income-account">
+        <div class="radio-options" id="bucket-book-options">
           <!-- Populated by JavaScript -->
-        </select>
-        <div class="hint">Used as the source when depositing to buckets</div>
+        </div>
+
+        <div class="form-group" id="new-book-name-group" style="display: none; margin-top: 16px;">
+          <label for="new-book-name">New Bucket Book Name</label>
+          <input type="text" id="new-book-name" placeholder="e.g., My Buckets">
+        </div>
       </div>
 
-      <div class="form-group">
-        <label for="withdrawal-account">Withdrawal Account (Outgoing)</label>
-        <select id="withdrawal-account">
+      <!-- Step 2: Income/Withdrawal Accounts -->
+      <div class="step-panel" id="step-2">
+        <h2>Step 2: Income & Withdrawal Accounts</h2>
+        <p>Configure the accounts used for deposits and withdrawals in your bucket book.</p>
+
+        <div class="form-group">
+          <label for="income-account">Income Account (Incoming)</label>
+          <select id="income-account">
+            <!-- Populated by JavaScript -->
+          </select>
+          <div class="hint">Used as the source when depositing to buckets</div>
+        </div>
+
+        <div class="form-group">
+          <label for="withdrawal-account">Withdrawal Account (Outgoing)</label>
+          <select id="withdrawal-account">
+            <!-- Populated by JavaScript -->
+          </select>
+          <div class="hint">Used as the destination when withdrawing from buckets</div>
+        </div>
+      </div>
+
+      <!-- Step 3: Bucket Accounts -->
+      <div class="step-panel" id="step-3">
+        <h2>Step 3: Configure Buckets</h2>
+        <p>Add your bucket accounts and set their distribution percentages. Percentages must sum to 100%.</p>
+
+        <table class="bucket-table">
+          <thead>
+            <tr>
+              <th>Bucket Name</th>
+              <th style="width: 100px;">Percentage</th>
+              <th style="width: 50px;"></th>
+            </tr>
+          </thead>
+          <tbody id="bucket-list">
+            <!-- Populated by JavaScript -->
+          </tbody>
+        </table>
+
+        <button class="add-bucket-btn" onclick="addBucket()">+ Add Bucket</button>
+
+        <div class="percentage-summary" id="percentage-summary">
+          <span>Total: <span class="total" id="percentage-total">0%</span></span>
+          <button class="distribute-btn" onclick="distributeEvenly()">Distribute Evenly</button>
+        </div>
+      </div>
+
+      <!-- Step 4: GL Savings Accounts -->
+      <div class="step-panel" id="step-4">
+        <h2>Step 4: Select Savings Accounts</h2>
+        <p>Choose which accounts in your GL book should trigger bucket distribution when transactions are posted.</p>
+
+        <div class="checkbox-list" id="savings-account-list">
           <!-- Populated by JavaScript -->
-        </select>
-        <div class="hint">Used as the destination when withdrawing from buckets</div>
+        </div>
+
+        <div class="form-group" style="margin-top: 16px;">
+          <label>
+            <input type="checkbox" id="create-new-savings" onchange="toggleNewSavingsInput()">
+            Create a new savings account
+          </label>
+        </div>
+
+        <div class="form-group" id="new-savings-group" style="display: none;">
+          <label for="new-savings-name">New Savings Account Name</label>
+          <input type="text" id="new-savings-name" placeholder="e.g., High Yield Savings">
+        </div>
       </div>
-    </div>
 
-    <!-- Step 3: Bucket Accounts -->
-    <div class="step-panel" id="step-3">
-      <h2>Step 3: Configure Buckets</h2>
-      <p>Add your bucket accounts and set their distribution percentages. Percentages must sum to 100%.</p>
+      <!-- Step 5: Initial Distribution -->
+      <div class="step-panel" id="step-5">
+        <h2>Step 5: Initial Distribution</h2>
+        <p>Distribute existing savings balances across your buckets. This step is optional if you have no existing
+          balances.</p>
 
-      <table class="bucket-table">
-        <thead>
-          <tr>
-            <th>Bucket Name</th>
-            <th style="width: 100px;">Percentage</th>
-            <th style="width: 50px;"></th>
-          </tr>
-        </thead>
-        <tbody id="bucket-list">
+        <div id="distribution-groups">
           <!-- Populated by JavaScript -->
-        </tbody>
-      </table>
-
-      <button class="add-bucket-btn" onclick="addBucket()">+ Add Bucket</button>
-
-      <div class="percentage-summary" id="percentage-summary">
-        <span>Total: <span class="total" id="percentage-total">0%</span></span>
-        <button class="distribute-btn" onclick="distributeEvenly()">Distribute Evenly</button>
-      </div>
-    </div>
-
-    <!-- Step 4: GL Savings Accounts -->
-    <div class="step-panel" id="step-4">
-      <h2>Step 4: Select Savings Accounts</h2>
-      <p>Choose which accounts in your GL book should trigger bucket distribution when transactions are posted.</p>
-
-      <div class="checkbox-list" id="savings-account-list">
-        <!-- Populated by JavaScript -->
+        </div>
       </div>
 
-      <div class="form-group" style="margin-top: 16px;">
-        <label>
-          <input type="checkbox" id="create-new-savings" onchange="toggleNewSavingsInput()">
-          Create a new savings account
-        </label>
+      <!-- Step 6: Review & Apply -->
+      <div class="step-panel" id="step-6">
+        <h2>Step 6: Review & Apply</h2>
+        <p>Review your configuration before applying.</p>
+
+        <div id="review-content">
+          <!-- Populated by JavaScript -->
+        </div>
+
+        <div class="message success" id="success-message" style="display: none;">
+          Configuration applied successfully!
+        </div>
+
+        <div class="message error" id="error-message" style="display: none;"></div>
       </div>
 
-      <div class="form-group" id="new-savings-group" style="display: none;">
-        <label for="new-savings-name">New Savings Account Name</label>
-        <input type="text" id="new-savings-name" placeholder="e.g., High Yield Savings">
+      <? } ?>
+    </div> <!-- End Tab: Setup Wizard -->
+
+    <!-- Tab: Percentage Manager -->
+    <div class="top-tab-content" id="tab-percentages">
+      <div class="pm-container">
+        <h2>Manage Bucket Percentages</h2>
+        <p>View and adjust the distribution percentages for your bucket accounts. The total must equal 100% to save.</p>
+
+        <div id="pm-loading" class="pm-loading" style="display: none;">
+          <div class="spinner"></div>
+          <div>Loading accounts...</div>
+        </div>
+
+        <div id="pm-error" class="pm-error" style="display: none;"></div>
+
+        <div id="pm-content" style="display: none;">
+          <table class="pm-table">
+            <thead>
+              <tr>
+                <th>Account Name</th>
+                <th style="width: 120px;">Percentage</th>
+              </tr>
+            </thead>
+            <tbody id="pm-accounts-list">
+              <!-- Populated by JavaScript -->
+            </tbody>
+          </table>
+
+          <div class="pm-total-bar" id="pm-total-bar">
+            <span>Total: <span id="pm-total-value">0</span>%</span>
+            <button class="distribute-btn" onclick="pmDistributeEvenly()">Distribute Evenly</button>
+          </div>
+
+          <div class="pm-actions">
+            <button class="btn btn-primary" id="pm-save-btn" onclick="pmSavePercentages()" disabled>Save
+              Changes</button>
+          </div>
+
+          <div id="pm-success" class="pm-success" style="display: none;">Percentages saved successfully!</div>
+        </div>
       </div>
-    </div>
+    </div> <!-- End Tab: Percentage Manager -->
 
-    <!-- Step 5: Initial Distribution -->
-    <div class="step-panel" id="step-5">
-      <h2>Step 5: Initial Distribution</h2>
-      <p>Distribute existing savings balances across your buckets. This step is optional if you have no existing balances.</p>
-
-      <div id="distribution-groups">
-        <!-- Populated by JavaScript -->
-      </div>
-    </div>
-
-    <!-- Step 6: Review & Apply -->
-    <div class="step-panel" id="step-6">
-      <h2>Step 6: Review & Apply</h2>
-      <p>Review your configuration before applying.</p>
-
-      <div id="review-content">
-        <!-- Populated by JavaScript -->
-      </div>
-
-      <div class="message success" id="success-message" style="display: none;">
-        Configuration applied successfully!
-      </div>
-
-      <div class="message error" id="error-message" style="display: none;"></div>
-    </div>
-
-    <? } ?>
   </div>
 
   <!-- Footer -->
@@ -770,7 +966,7 @@
     const isEditMode = <?!= isEditMode ?>;
 
     // Initialize
-    window.onload = function() {
+    window.onload = function () {
       showLoading(true);
       google.script.run
         .withSuccessHandler(onStateLoaded)
@@ -944,7 +1140,7 @@
       }
 
       // Handle new account selection
-      incomeSelect.onchange = function() {
+      incomeSelect.onchange = function () {
         if (this.value === '__new__') {
           const name = prompt('Enter income account name:', 'Savings');
           if (name) {
@@ -958,7 +1154,7 @@
         }
       };
 
-      withdrawalSelect.onchange = function() {
+      withdrawalSelect.onchange = function () {
         if (this.value === '__new__') {
           const name = prompt('Enter withdrawal account name:', 'Withdrawal');
           if (name) {
@@ -1402,7 +1598,7 @@
         document.getElementById('success-message').style.display = 'block';
         document.getElementById('error-message').style.display = 'none';
         nextBtn.textContent = 'Done';
-        nextBtn.onclick = function() { closeWindow(); };
+        nextBtn.onclick = function () { closeWindow(); };
         nextBtn.disabled = false;
       } else {
         document.getElementById('error-message').textContent = result.error || 'Unknown error';
@@ -1464,6 +1660,210 @@
         maximumFractionDigits: 2
       }).format(amount);
     }
+
+    // ==========================================
+    // Top-Level Tab Switching
+    // ==========================================
+    function switchTopTab(tabName) {
+      // Update tab buttons
+      document.querySelectorAll('.top-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabName);
+      });
+
+      // Update tab content
+      document.querySelectorAll('.top-tab-content').forEach(content => {
+        content.classList.toggle('active', content.id === 'tab-' + tabName);
+      });
+
+      // Show/hide footer based on tab
+      const footer = document.querySelector('.footer');
+      if (footer) {
+        footer.style.display = tabName === 'wizard' ? 'flex' : 'none';
+      }
+
+      // Load Percentage Manager data when switching to that tab
+      if (tabName === 'percentages') {
+        loadPercentageManager();
+      }
+    }
+
+    // ==========================================
+    // Percentage Manager
+    // ==========================================
+    let pmAccounts = [];
+    let pmBucketBookId = null;
+
+    function loadPercentageManager() {
+      const loadingEl = document.getElementById('pm-loading');
+      const errorEl = document.getElementById('pm-error');
+      const contentEl = document.getElementById('pm-content');
+      const successEl = document.getElementById('pm-success');
+
+      loadingEl.style.display = 'block';
+      errorEl.style.display = 'none';
+      contentEl.style.display = 'none';
+      successEl.style.display = 'none';
+
+      // Get bucket book ID from state (wizard state) or need to fetch it
+      if (state && state.bucketBookId) {
+        pmBucketBookId = state.bucketBookId;
+        fetchPmAccounts();
+      } else {
+        // Need to load wizard state first to get bucket book ID
+        google.script.run
+          .withSuccessHandler(function (loadedState) {
+            if (loadedState && loadedState.bucketBookId) {
+              pmBucketBookId = loadedState.bucketBookId;
+              fetchPmAccounts();
+            } else {
+              loadingEl.style.display = 'none';
+              errorEl.style.display = 'block';
+              errorEl.innerHTML = 'No bucket book configured. Please complete the Setup Wizard first.';
+            }
+          })
+          .withFailureHandler(function (error) {
+            loadingEl.style.display = 'none';
+            errorEl.style.display = 'block';
+            errorEl.textContent = 'Error loading state: ' + error.message;
+          })
+          .loadWizardState(glBookId);
+      }
+    }
+
+    function fetchPmAccounts() {
+      google.script.run
+        .withSuccessHandler(onPmAccountsLoaded)
+        .withFailureHandler(onPmError)
+        .getAllBucketAssets(pmBucketBookId);
+    }
+
+    function onPmAccountsLoaded(accounts) {
+      pmAccounts = accounts;
+      document.getElementById('pm-loading').style.display = 'none';
+      document.getElementById('pm-content').style.display = 'block';
+      document.getElementById('pm-success').style.display = 'none';
+      renderPmAccounts();
+    }
+
+    function onPmError(error) {
+      document.getElementById('pm-loading').style.display = 'none';
+      document.getElementById('pm-error').style.display = 'block';
+      document.getElementById('pm-error').textContent = 'Error: ' + error.message;
+    }
+
+    function renderPmAccounts() {
+      const tbody = document.getElementById('pm-accounts-list');
+      let html = '';
+
+      for (let i = 0; i < pmAccounts.length; i++) {
+        const acc = pmAccounts[i];
+        const percentage = acc.percentage !== null ? acc.percentage : '';
+        html += `
+          <tr>
+            <td>${acc.name}</td>
+            <td>
+              <input type="number" id="pm-input-${i}" 
+                value="${percentage}" 
+                placeholder="0"
+                oninput="pmUpdateTotal()"
+                min="0" max="100" step="1">
+            </td>
+          </tr>
+        `;
+      }
+
+      tbody.innerHTML = html;
+      pmUpdateTotal();
+    }
+
+    function pmUpdateTotal() {
+      let total = 0;
+      for (let i = 0; i < pmAccounts.length; i++) {
+        const input = document.getElementById('pm-input-' + i);
+        const value = parseFloat(input.value) || 0;
+        total += value;
+      }
+
+      const totalEl = document.getElementById('pm-total-value');
+      const barEl = document.getElementById('pm-total-bar');
+      const saveBtn = document.getElementById('pm-save-btn');
+
+      totalEl.textContent = total;
+
+      barEl.classList.remove('valid', 'invalid');
+      if (total === 100) {
+        barEl.classList.add('valid');
+        saveBtn.disabled = false;
+      } else {
+        barEl.classList.add('invalid');
+        saveBtn.disabled = true;
+      }
+
+      // Hide success message when user makes changes
+      document.getElementById('pm-success').style.display = 'none';
+    }
+
+    function pmDistributeEvenly() {
+      if (pmAccounts.length === 0) return;
+
+      const basePercentage = Math.floor(100 / pmAccounts.length);
+      let remainder = 100 - (basePercentage * pmAccounts.length);
+
+      for (let i = 0; i < pmAccounts.length; i++) {
+        const input = document.getElementById('pm-input-' + i);
+        // Give the remainder to the first account(s)
+        const extra = remainder > 0 ? 1 : 0;
+        input.value = basePercentage + extra;
+        if (remainder > 0) remainder--;
+      }
+
+      pmUpdateTotal();
+    }
+
+    function pmSavePercentages() {
+      const saveBtn = document.getElementById('pm-save-btn');
+      saveBtn.textContent = 'Saving...';
+      saveBtn.disabled = true;
+
+      const percentages = [];
+      for (let i = 0; i < pmAccounts.length; i++) {
+        const input = document.getElementById('pm-input-' + i);
+        const value = parseFloat(input.value) || 0;
+        percentages.push({
+          accountId: pmAccounts[i].id,
+          percentage: value
+        });
+      }
+
+      google.script.run
+        .withSuccessHandler(onPmSaveSuccess)
+        .withFailureHandler(onPmSaveError)
+        .savePercentages(pmBucketBookId, percentages);
+    }
+
+    function onPmSaveSuccess(result) {
+      const saveBtn = document.getElementById('pm-save-btn');
+      saveBtn.textContent = 'Save Changes';
+
+      if (result.success) {
+        document.getElementById('pm-success').style.display = 'block';
+        document.getElementById('pm-error').style.display = 'none';
+        saveBtn.disabled = false;
+      } else {
+        document.getElementById('pm-error').style.display = 'block';
+        document.getElementById('pm-error').textContent = 'Error: ' + result.error;
+        saveBtn.disabled = false;
+      }
+    }
+
+    function onPmSaveError(error) {
+      const saveBtn = document.getElementById('pm-save-btn');
+      saveBtn.textContent = 'Save Changes';
+      saveBtn.disabled = false;
+      document.getElementById('pm-error').style.display = 'block';
+      document.getElementById('pm-error').textContent = 'Error: ' + error.message;
+    }
   </script>
 </body>
+
 </html>

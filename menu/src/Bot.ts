@@ -78,3 +78,20 @@ function applyConfiguration(config: ApplyConfig): ApplyResult {
 function resetConfiguration(glBookId: string): ResetResult {
   return WizardService.resetConfiguration(glBookId);
 }
+
+/**
+ * Get all Asset accounts from bucket book for Percentage Manager
+ */
+function getAllBucketAssets(bucketBookId: string): PercentageManagerAccount[] {
+  return AccountService.getAllBucketAssets(bucketBookId);
+}
+
+/**
+ * Save percentages for accounts in Percentage Manager
+ */
+function savePercentages(
+  bucketBookId: string,
+  percentages: { accountId: string; percentage: number }[]
+): SavePercentagesResult {
+  return AccountService.savePercentages(bucketBookId, percentages);
+}
