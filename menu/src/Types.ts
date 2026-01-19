@@ -147,12 +147,30 @@ interface ResetResult {
 }
 
 /**
- * Account info for Percentage Manager (all Asset accounts)
+ * Account info for Bucket Manager (all Asset accounts with balance)
  */
-interface PercentageManagerAccount {
+interface BucketManagerAccount {
   id: string;
   name: string;
   percentage: number | null;  // null if no percentage property set
+  balance: number;
+}
+
+/**
+ * Result of creating a bucket account
+ */
+interface CreateBucketResult {
+  success: boolean;
+  accountId: string | null;
+  error: string | null;
+}
+
+/**
+ * Result of deleting a bucket account
+ */
+interface DeleteBucketResult {
+  success: boolean;
+  error: string | null;
 }
 
 /**

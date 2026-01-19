@@ -194,13 +194,13 @@ namespace AccountService {
   }
 
   /**
-   * Get ALL Asset accounts from bucket book for Percentage Manager
-   * Returns percentage as null if not set
+   * Get ALL Asset accounts from bucket book for Bucket Manager
+   * Returns percentage as null if not set, includes balance
    */
-  export function getAllBucketAssets(bucketBookId: string): PercentageManagerAccount[] {
+  export function getAllBucketAssets(bucketBookId: string): BucketManagerAccount[] {
     const book = BkperApp.getBook(bucketBookId);
     const accounts = book.getAccounts();
-    const result: PercentageManagerAccount[] = [];
+    const result: BucketManagerAccount[] = [];
 
     for (const account of accounts) {
       if (account.getType() === 'ASSET' && !account.isArchived()) {
@@ -208,7 +208,8 @@ namespace AccountService {
         result.push({
           id: account.getId(),
           name: account.getName(),
-          percentage: percentageStr ? parseFloat(percentageStr) : null
+          percentage: percentageStr ? parseFloat(percentageStr) : null,
+          balance: getAccountBalance(book, account.getName())
         });
       }
     }
@@ -245,6 +246,88 @@ namespace AccountService {
           result.accountsUpdated++;
         }
       }
+
+      result.success = true;
+    } catch (e) {
+      result.success = false;
+      result.error = e instanceof Error ? e.message : 'Unknown error';
+    }
+
+    return result;
+  }
+
+  /**
+   * Create a new bucket account with percentage in the Bucket Manager
+   */
+  export function createBucketAccount(
+    bucketBookId: string,
+    name: string,
+    percentage: number
+  ): CreateBucketResult {
+    const result: CreateBucketResult = {
+      success: false,
+      accountId: null,
+      error: null
+    };
+
+    try {
+      const book = BkperApp.getBook(bucketBookId);
+
+      // Check if account already exists
+      const existing = book.getAccount(name);
+      if (existing) {
+        result.error = `Account "${name}" already exists`;
+        return result;
+      }
+
+      // Create the account
+      const account = book.newAccount()
+        .setName(name)
+        .setType(BkperApp.AccountType.ASSET)
+        .setProperty(PERCENTAGE_PROP, percentage.toString())
+        .create();
+
+      result.success = true;
+      result.accountId = account.getId();
+    } catch (e) {
+      result.success = false;
+      result.error = e instanceof Error ? e.message : 'Unknown error';
+    }
+
+    return result;
+  }
+
+  /**
+   * Delete a bucket account (only if balance is zero)
+   */
+  export function deleteBucketAccount(
+    bucketBookId: string,
+    accountId: string
+  ): DeleteBucketResult {
+    const result: DeleteBucketResult = {
+      success: false,
+      error: null
+    };
+
+    try {
+      const book = BkperApp.getBook(bucketBookId);
+      const accounts = book.getAccounts();
+      const account = accounts.find(a => a.getId() === accountId);
+
+      if (!account) {
+        result.error = 'Account not found';
+        return result;
+      }
+
+      // Check balance
+      const balance = getAccountBalance(book, account.getName());
+      if (Math.abs(balance) > 0.001) {
+        result.error = `Cannot delete account with balance of ${balance.toFixed(2)}. Transfer funds first.`;
+        return result;
+      }
+
+      // Archive the account (safer than hard delete)
+      account.setArchived(true).update();
 
       result.success = true;
     } catch (e) {

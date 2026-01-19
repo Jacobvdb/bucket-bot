@@ -719,6 +719,96 @@
     .pm-success {
       color: #137333;
     }
+
+    /* Bucket Manager Additional Styles */
+    .pm-balance-summary {
+      padding: 16px;
+      background: #e3f2fd;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      font-size: 15px;
+    }
+
+    .pm-balance-summary strong {
+      font-size: 18px;
+      color: #1565c0;
+    }
+
+    .pm-add-bucket-form {
+      margin: 20px 0;
+      padding: 16px;
+      background: #f5f5f5;
+      border-radius: 6px;
+    }
+
+    .pm-add-bucket-form h4 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      color: #333;
+    }
+
+    .pm-add-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .pm-input-name {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .pm-input-percentage {
+      width: 80px;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      text-align: right;
+    }
+
+    .pm-add-error {
+      color: #c5221f;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+
+    .btn-sm {
+      padding: 8px 16px;
+      font-size: 13px;
+    }
+
+    .pm-delete-btn {
+      background: none;
+      border: none;
+      color: #ea4335;
+      cursor: pointer;
+      font-size: 18px;
+      padding: 4px 8px;
+    }
+
+    .pm-delete-btn:hover {
+      background: #fce8e6;
+      border-radius: 4px;
+    }
+
+    .pm-delete-btn:disabled {
+      color: #ccc;
+      cursor: not-allowed;
+    }
+
+    .pm-delete-btn:disabled:hover {
+      background: none;
+    }
+
+    .pm-table .balance-cell {
+      color: #666;
+      font-size: 13px;
+      text-align: right;
+    }
   </style>
 </head>
 
@@ -733,7 +823,7 @@
     <? if (canEdit) { ?>
     <div class="top-tabs">
       <div class="top-tab active" data-tab="wizard" onclick="switchTopTab('wizard')">Setup Wizard</div>
-      <div class="top-tab" data-tab="percentages" onclick="switchTopTab('percentages')">Percentage Manager</div>
+      <div class="top-tab" data-tab="percentages" onclick="switchTopTab('percentages')">Bucket Manager</div>
     </div>
     <? } ?>
   </div>
@@ -904,8 +994,8 @@
     <!-- Tab: Percentage Manager -->
     <div class="top-tab-content" id="tab-percentages">
       <div class="pm-container">
-        <h2>Manage Bucket Percentages</h2>
-        <p>View and adjust the distribution percentages for your bucket accounts. The total must equal 100% to save.</p>
+        <h2>Bucket Manager</h2>
+        <p>Manage your bucket accounts: view balances, adjust percentages, add new buckets, or remove unused ones.</p>
 
         <div id="pm-loading" class="pm-loading" style="display: none;">
           <div class="spinner"></div>
@@ -915,17 +1005,36 @@
         <div id="pm-error" class="pm-error" style="display: none;"></div>
 
         <div id="pm-content" style="display: none;">
+          <!-- Total Balance Summary -->
+          <div class="pm-balance-summary" id="pm-balance-summary">
+            <span>Total Bucket Balance: <strong id="pm-total-balance">0.00</strong></span>
+          </div>
+
           <table class="pm-table">
             <thead>
               <tr>
                 <th>Account Name</th>
-                <th style="width: 120px;">Percentage</th>
+                <th style="width: 100px;">Balance</th>
+                <th style="width: 100px;">Percentage</th>
+                <th style="width: 60px;">Actions</th>
               </tr>
             </thead>
             <tbody id="pm-accounts-list">
               <!-- Populated by JavaScript -->
             </tbody>
           </table>
+
+          <!-- Add New Bucket Form -->
+          <div class="pm-add-bucket-form" id="pm-add-form">
+            <h4>Add New Bucket</h4>
+            <div class="pm-add-row">
+              <input type="text" id="pm-new-name" placeholder="Bucket name" class="pm-input-name">
+              <input type="number" id="pm-new-percentage" placeholder="%" min="0" max="100" step="1"
+                class="pm-input-percentage">
+              <button class="btn btn-primary btn-sm" onclick="bmAddBucket()">Add</button>
+            </div>
+            <div id="pm-add-error" class="pm-add-error" style="display: none;"></div>
+          </div>
 
           <div class="pm-total-bar" id="pm-total-bar">
             <span>Total: <span id="pm-total-value">0</span>%</span>
@@ -937,10 +1046,10 @@
               Changes</button>
           </div>
 
-          <div id="pm-success" class="pm-success" style="display: none;">Percentages saved successfully!</div>
+          <div id="pm-success" class="pm-success" style="display: none;">Changes saved successfully!</div>
         </div>
       </div>
-    </div> <!-- End Tab: Percentage Manager -->
+    </div> <!-- End Tab: Bucket Manager -->
 
   </div>
 
@@ -1754,13 +1863,20 @@
     function renderPmAccounts() {
       const tbody = document.getElementById('pm-accounts-list');
       let html = '';
+      let totalBalance = 0;
 
       for (let i = 0; i < pmAccounts.length; i++) {
         const acc = pmAccounts[i];
         const percentage = acc.percentage !== null ? acc.percentage : '';
+        const balance = acc.balance || 0;
+        totalBalance += balance;
+        const canDelete = Math.abs(balance) < 0.01;
+        const deleteTitle = canDelete ? 'Delete bucket' : 'Cannot delete: account has balance';
+
         html += `
           <tr>
             <td>${acc.name}</td>
+            <td class="balance-cell">${formatCurrency(balance)}</td>
             <td>
               <input type="number" id="pm-input-${i}" 
                 value="${percentage}" 
@@ -1768,11 +1884,21 @@
                 oninput="pmUpdateTotal()"
                 min="0" max="100" step="1">
             </td>
+            <td>
+              <button class="pm-delete-btn" 
+                onclick="bmDeleteBucket('${acc.id}', '${acc.name}')"
+                ${canDelete ? '' : 'disabled'}
+                title="${deleteTitle}">×</button>
+            </td>
           </tr>
         `;
       }
 
       tbody.innerHTML = html;
+
+      // Update total balance display
+      document.getElementById('pm-total-balance').textContent = formatCurrency(totalBalance);
+
       pmUpdateTotal();
     }
 
@@ -1862,6 +1988,92 @@
       saveBtn.disabled = false;
       document.getElementById('pm-error').style.display = 'block';
       document.getElementById('pm-error').textContent = 'Error: ' + error.message;
+    }
+
+    // ==========================================
+    // Bucket Manager: Add/Delete Functions
+    // ==========================================
+
+    function bmAddBucket() {
+      const nameInput = document.getElementById('pm-new-name');
+      const percentageInput = document.getElementById('pm-new-percentage');
+      const errorEl = document.getElementById('pm-add-error');
+
+      const name = nameInput.value.trim();
+      const percentage = parseFloat(percentageInput.value) || 0;
+
+      // Validation
+      if (!name) {
+        errorEl.textContent = 'Please enter a bucket name';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      if (percentage < 0 || percentage > 100) {
+        errorEl.textContent = 'Percentage must be between 0 and 100';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      errorEl.style.display = 'none';
+
+      // Disable inputs while creating
+      nameInput.disabled = true;
+      percentageInput.disabled = true;
+
+      google.script.run
+        .withSuccessHandler(function (result) {
+          nameInput.disabled = false;
+          percentageInput.disabled = false;
+
+          if (result.success) {
+            // Clear inputs
+            nameInput.value = '';
+            percentageInput.value = '';
+            // Refresh the accounts list
+            fetchPmAccounts();
+          } else {
+            errorEl.textContent = result.error || 'Failed to create bucket';
+            errorEl.style.display = 'block';
+          }
+        })
+        .withFailureHandler(function (error) {
+          nameInput.disabled = false;
+          percentageInput.disabled = false;
+          errorEl.textContent = error.message || 'Failed to create bucket';
+          errorEl.style.display = 'block';
+        })
+        .createBucketAccount(pmBucketBookId, name, percentage);
+    }
+
+    function bmDeleteBucket(accountId, accountName) {
+      if (!confirm(`Are you sure you want to delete "${accountName}"?`)) {
+        return;
+      }
+
+      // Show loading state
+      document.getElementById('pm-loading').style.display = 'block';
+      document.getElementById('pm-content').style.display = 'none';
+
+      google.script.run
+        .withSuccessHandler(function (result) {
+          if (result.success) {
+            // Refresh the accounts list
+            fetchPmAccounts();
+          } else {
+            document.getElementById('pm-loading').style.display = 'none';
+            document.getElementById('pm-content').style.display = 'block';
+            document.getElementById('pm-error').style.display = 'block';
+            document.getElementById('pm-error').textContent = result.error || 'Failed to delete bucket';
+          }
+        })
+        .withFailureHandler(function (error) {
+          document.getElementById('pm-loading').style.display = 'none';
+          document.getElementById('pm-content').style.display = 'block';
+          document.getElementById('pm-error').style.display = 'block';
+          document.getElementById('pm-error').textContent = error.message || 'Failed to delete bucket';
+        })
+        .deleteBucketAccount(pmBucketBookId, accountId);
     }
   </script>
 </body>
