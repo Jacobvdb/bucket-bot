@@ -158,6 +158,18 @@ Once the bot is installed, the easiest way to configure Bucket Bot is through th
 
 The wizard handles all the property configuration automatically. You can re-run it anytime to modify your setup or reset the configuration.
 
+#### Bucket Manager Tab
+
+After initial setup, use the **Bucket Manager** tab to manage your buckets without re-running the full wizard:
+
+| Feature | Description |
+|---------|-------------|
+| **View Balances** | See each bucket's current balance and total balance |
+| **Add Buckets** | Create new bucket accounts with name and percentage |
+| **Delete Buckets** | Remove unused buckets (only allowed if balance is zero) |
+| **Adjust Percentages** | Modify distribution percentages (must sum to 100%) |
+| **Distribute Evenly** | Automatically split percentages equally across all buckets |
+
 ### Manual Configuration (Alternative)
 
 If you prefer to configure manually, or need to understand the underlying properties:
@@ -355,10 +367,10 @@ src/                        # Cloudflare Worker (webhook handler)
 menu/                       # Google Apps Script (setup wizard)
 └── src/
     ├── Bot.ts              # Entry point, exposed functions
-    ├── WizardView.html     # Multi-step wizard UI
+    ├── WizardView.html     # Multi-step wizard UI + Bucket Manager
     ├── WizardService.ts    # Wizard logic and state management
     ├── BookService.ts      # Book operations
-    ├── AccountService.ts   # Account operations
+    ├── AccountService.ts   # Account operations (CRUD, bucket management)
     ├── TransactionService.ts # Transaction operations
     └── Types.ts            # TypeScript interfaces
 
